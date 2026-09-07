@@ -1,0 +1,38 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.python-version
+
+# Flutter and Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/build/
+**/coverage/
+
+# Android / iOS / desktop build outputs
+**/.gradle/
+**/Pods/
+**/DerivedData/
+**/CMakeFiles/
+**/cmake-build-*/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+*.iml
+
+# Env files
+.env
+.env.*
