@@ -1,0 +1,6 @@
+org/example/Main.class
+org/example/dto/OcrResponse.class
+org/example/util/ImageUtils.class
+org/example/controller/OcrController.class
+org/example/service/OcrService.class
+org/example/service/ImagePreprocessor.class
