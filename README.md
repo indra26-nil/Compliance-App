@@ -20,9 +20,10 @@ readability, …).
 
 | Piece | Path | Status |
 |---|---|---|
-| **Flutter app (the product)** | `App/complience_app/` | ✅ Working, offline-first |
-| Backend API stub + contract | `App/complience_app/lib/services/backend_api.dart` + `App/complience_app/docs/backend_api_contract.md` | 📝 Spec only (D/E/F phase) |
-| Legacy `regulation-engine/` (Express+Mongo) | `regulation-engine/` | ⚠️ Prototype, import-case bugs noted in §8 |
+| **Flutter app (the product)** | `App/complience_app/` | ✅ Working, offline-first + server sync |
+| Backend API + dashboard + reports (D/E/F) | `regulation-engine/` (+ `/dashboard`) | ✅ Built, contract-live (see below) |
+| Backend contract | `App/complience_app/docs/backend_api_contract.md` | ✅ Frozen + implemented (§6) |
+| Flutter server client | `App/complience_app/lib/services/backend_api.dart` + `server_config.dart` + `sync_service.dart` | ✅ Live (fire-and-forget queue) |
 | Legacy Java OCR prototype | `OCR/` | ❄️ Frozen — superseded by on-device PP-OCRv5 |
 | Empty Python scaffold | `src/compliance_app/` | ❄️ Unused |
 
@@ -187,25 +188,34 @@ distinctly (✓ PASS green, ✕ FAIL red, UNVERIFIED orange with guidance).
 
 ---
 
-## 8. Server phase — D / E / F (spec, not built)
+## 8. Server phase — D / E / F (built, 2026-09)
 
-Full endpoint/API/DB contract: **`App/complience_app/docs/backend_api_contract.md`**,
-callable surface: `lib/services/backend_api.dart` (every method documents
-verb + path + request/response JSON, throws `UnimplementedError`).
-`TODO(BACKEND-*)` markers sit at the exact plug-in points
-(`ScanPipeline` step 5, report-card PDF button).
+Live in **`regulation-engine/` v2** (deploy + storage + app-connect guide:
+`regulation-engine/README.md`); the frozen contract still lives at
+**`App/complience_app/docs/backend_api_contract.md`** (§6 logs the build).
 
-- **D**: `POST /api/auth/login` (JWT, officer/supervisor/admin),
-  `POST /api/scans` (multipart photos + `reportJson`), `GET /api/scans…`
-- **E**: `GET /api/dashboard/summary` (KPIs, top violations, recent)
-- **F**: `GET /api/reports/:id.pdf` (signed archival copy),
-  `GET /api/reports.csv` (same column order as offline export)
-
-> Note: `regulation-engine/` predates this contract and has filename
-> case-mismatches (`productControllers` vs `productController`,
-> `regulatioController`, `ValidationResult` vs `validation`,
-> `validation_engine` vs `validationEngine`) — fix imports and align its
-> models to the contract when building D.
+- **D**: `POST /api/auth/login` (JWT 12h, officer/supervisor/admin +
+  `POST /api/auth/register` bootstrap), `POST /api/scans` (multipart
+  `photos[]` ≤8 + `reportJson` verbatim → `{id,verdict,score,corrected}`),
+  `GET /api/scans…` (q/verdict/category/page/limit), versioned
+  `GET /api/regulations` (`general` + `food`, `2026.09`, full `LM-R6-*`
+  catalog). Import-case bugs fixed; legacy `/api/products|/validations`
+  kept. Seeded demo: `officer@gov.in / officer123`,
+  `admin@gov.in / admin123`.
+- **E**: `GET /api/dashboard/summary` (KPIs, top violations, recent) +
+  static enforcement register at `/dashboard` (ledger-styled, login,
+  tallies, ranked violations, search table, file drawer with evidence).
+- **F**: `GET /api/reports/:id.pdf` (pdfkit archival copy mirroring the
+  report card) + `GET /api/reports.csv` (same column order as the offline
+  export — server and device CSVs diff cleanly).
+- **App wiring**: `BackendApi` over `http`, URL via
+  `--dart-define=API_BASE_URL=` or Server Settings, JWT in secure storage,
+  `SyncService` fire-and-forget queue (online-gated, backoff) hooked into
+  `ScanPipeline.checkAndSave`, `product_scans` v3 (`serverId`, `synced`),
+  sync chips + official-PDF button on the report card.
+- **Host**: API on Render (`render.yaml` Blueprint), DB on MongoDB Atlas
+  (free M0), photos on Cloudinary (free tier; local `uploads/` for dev),
+  dashboard served from the same API at `/dashboard`.
 
 ---
 

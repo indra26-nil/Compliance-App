@@ -1,0 +1,129 @@
+// F — official archival PDF for one scan. Mirrors the mobile report-card
+// sections: header (product, officer, date), verdict + score, violation
+// table (rule code / clause / evidence / photo ref), photo evidence
+// appendix, officer signature block.
+const PDFDocument = require("pdfkit");
+
+function verdictLabel(v) {
+  if (v === "compliant") return "COMPLIANT";
+  if (v === "nonCompliant") return "NON-COMPLIANT";
+  return "NEEDS REVIEW";
+}
+
+function verdictColor(v) {
+  if (v === "compliant") return "#1B5E20";
+  if (v === "nonCompliant") return "#C1272D";
+  return "#B7791F";
+}
+
+function buildReportPdf(scan, officer) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: "A4", margin: 48 });
+      const chunks = [];
+      doc.on("data", (c) => chunks.push(c));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+
+      const r = scan.reportJson || {};
+      const results = r.results || [];
+      const decl = (f) => {
+        try {
+          return r.declarations?.fields?.[f]?.value || "—";
+        } catch {
+          return "—";
+        }
+      };
+
+      // Header
+      doc.fontSize(11).fillColor("#5b5b5b").text("Legal Metrology (Packaged Commodities) Rules, 2011");
+      doc.fontSize(20).fillColor("#14213D").text("Compliance Inspection Report", { underline: false });
+      doc.moveDown(0.5);
+      doc.fontSize(10).fillColor("#333");
+      doc.text(`Product: ${scan.productName}   |   Category: ${scan.category}`);
+      doc.text(
+        `Officer: ${officer?.name || scan.officerName || "—"}   |   Date: ${(scan.createdAt || new Date()).toISOString().slice(0, 10)}`
+      );
+      doc.text(`Scan ID: ${scan._id}   |   Photos: ${scan.photoCount}`);
+      doc.moveDown(0.5);
+      doc.moveTo(48, doc.y).lineTo(547, doc.y).strokeColor("#E5E0D5").stroke();
+      doc.moveDown(0.5);
+
+      // Verdict banner
+      doc.fontSize(16).fillColor(verdictColor(scan.verdict)).text(
+        `${verdictLabel(scan.verdict)}  •  Score ${scan.score}/100`
+      );
+      doc.fontSize(9).fillColor("#5b5b5b").text(
+        "Verdict semantics: FAIL = proven violation on an adequate capture. " +
+        "UNVERIFIED = capture too weak to prove absence — retake, don't penalise."
+      );
+      doc.moveDown(0.5);
+
+      // Declarations table
+      doc.fontSize(12).fillColor("#14213D").text("Declared values (as extracted on device)");
+      const rows = [
+        ["Generic name", decl("genericName")],
+        ["Brand", decl("brand")],
+        ["Net quantity", decl("netQty")],
+        ["MRP", decl("mrp")],
+        ["Mfg / Pack date", decl("mfg")],
+        ["Expiry / Best-before", decl("exp")],
+        ["Manufacturer", decl("manufacturer")],
+        ["Care phone", decl("carePhone")],
+        ["Care email", decl("careEmail")],
+        ["Country of origin", decl("origin")],
+        ["Batch / lot", decl("batch")],
+        ["FSSAI Lic. No.", decl("fssai")],
+      ];
+      doc.fontSize(9).fillColor("#222");
+      for (const [k, v] of rows) {
+        doc.text(`${k}: `, { continued: true }).fillColor("#000").text(String(v)).fillColor("#222");
+      }
+      doc.moveDown(0.5);
+
+      // Rule table
+      doc.fontSize(12).fillColor("#14213D").text("Rule findings");
+      doc.fontSize(8).fillColor("#333");
+      const colX = [48, 130, 250, 400];
+      doc.text("Code", colX[0], doc.y, { width: 80 });
+      const y0 = doc.y;
+      doc.text("Clause", colX[1], y0, { width: 115 });
+      doc.text("Status / evidence", colX[2], y0, { width: 150 });
+      doc.moveDown(0.5);
+      for (const rule of results) {
+        if (doc.y > 720) doc.addPage();
+        const y = doc.y;
+        doc.fillColor("#14213D").text(String(rule.code || ""), colX[0], y, { width: 80 });
+        doc.fillColor("#333").text(String(rule.clause || ""), colX[1], y, { width: 115 });
+        const ev = `${String(rule.status || "").toUpperCase()} — ${String(rule.message || "")}${
+          rule.evidence ? ` [${String(rule.evidence).slice(0, 140)}]` : ""
+        }${rule.photoIndex !== undefined && rule.photoIndex !== null ? ` (photo ${Number(rule.photoIndex) + 1})` : ""}`;
+        doc.fillColor("#111").text(ev, colX[2], y, { width: 150 });
+        doc.moveDown(0.4);
+      }
+      doc.moveDown(0.5);
+
+      // Photo appendix
+      doc.fontSize(12).fillColor("#14213D").text("Photo evidence (reference URLs)");
+      doc.fontSize(9).fillColor("#333");
+      (scan.imageUrls || []).forEach((u, i) => {
+        doc.fillColor("#1a56db").text(`Photo ${i + 1}: ${u}`, { link: u, underline: false });
+        doc.fillColor("#333");
+      });
+      if (!(scan.imageUrls || []).length) doc.text("No photo URLs stored.");
+      doc.moveDown(1);
+
+      // Signature block
+      doc.fontSize(10).fillColor("#14213D").text("Officer signature: ____________________________");
+      doc.fontSize(9).fillColor("#5b5b5b").text(
+        `Generated by the compliance server • reportJson checkedAt: ${r.checkedAt || "—"} • ` +
+        `meanConfidence: ${r.meanConfidence ?? scan.meanConfidence ?? "—"}`
+      );
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+module.exports = { buildReportPdf };

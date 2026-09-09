@@ -25,21 +25,12 @@
 ///    an extraction gap on a weak capture is UNVERIFIED, never FAIL.
 /// 6. Persist via [OcrStore.insertProductScan] (full report JSON + thumbs).
 ///
-/// ## Backend handoff (D — implement later, see [BackendApi] + docs)
-/// When the server exists, step 7 becomes:
-/// ```dart
-/// // TODO(BACKEND-D): after local save, queue for upload:
-/// // await BackendApi.instance.uploadScan(
-/// //   productName: productName,
-/// //   category: category,
-/// //   imagePaths: imagePaths,          // multipart files
-/// //   reportJson: report.toJson(),     // POST /api/scans
-/// //   ocrText: combinedText,
-/// // );
-/// // Mark row synced (add `synced` column), retry on connectivity_plus.
-/// ```
-/// The local report stays the source of truth offline; the server copy
-/// powers the dashboard (E) and PDF archive (F).
+/// ## Backend handoff (D — live, see [BackendApi] + [SyncService])
+/// After the local save, the scan is queued for server upload
+/// (`POST /api/scans`): fire-and-forget, exponential backoff, gated on
+/// `connectivity_plus` + stored JWT. The local report stays the source of
+/// truth offline; the server copy powers the dashboard (E) and PDF archive
+/// (F). Officers sign in once in Server Settings.
 library;
 
 import 'dart:async';
@@ -55,6 +46,7 @@ import 'ocr_service.dart';
 import 'ocr_store.dart';
 import 'ocr_tokens.dart';
 import 'rule_engine.dart';
+import 'sync_service.dart';
 import 'tiny_classifier.dart';
 import 'variable_print.dart';
 
@@ -530,8 +522,9 @@ class ScanPipeline {
           createdAt: DateTime.now(),
         );
 
-    // TODO(BACKEND-D): enqueue server upload here (see library docs above).
-    // Do NOT block the report screen on upload — fire-and-forget the queue.
+    // Enqueue server upload (D) — fire-and-forget, never blocks the
+    // report screen. No token / offline => stays queued locally.
+    SyncService.instance.enqueue(id);
 
     return ProductScanOutcome(
       record: stored,

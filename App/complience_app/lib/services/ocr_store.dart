@@ -59,6 +59,8 @@ class ProductScanRecord {
     required this.meanConfidence,
     required this.regionCount,
     required this.createdAt,
+    this.serverId,
+    this.synced = false,
   });
 
   final int? id;
@@ -73,6 +75,11 @@ class ProductScanRecord {
   final double meanConfidence;
   final int regionCount;
   final DateTime createdAt;
+
+  /// D — server sync bookkeeping. Local row stays source of truth offline;
+  /// [serverId] + [synced] are filled by [SyncService] after upload.
+  final String? serverId;
+  final bool synced;
 
   Map<String, Object?> toMap() => {
         'id': id,
@@ -116,6 +123,8 @@ class ProductScanRecord {
       regionCount: (map['regionCount'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
           (map['createdAt'] as int?) ?? 0),
+      serverId: map['serverId'] as String?,
+      synced: ((map['synced'] as num?)?.toInt() ?? 0) == 1,
     );
   }
 }
@@ -140,7 +149,7 @@ class OcrStore {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, _dbName),
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE $_table(
@@ -159,9 +168,24 @@ class OcrStore {
         if (oldVersion < 2) {
           await _createProductTable(db);
         }
+        // v2 -> v3: server sync bookkeeping (D). Local rows stay untouched.
+        if (oldVersion < 3) {
+          await _addSyncColumns(db);
+        }
       },
     );
     return _db!;
+  }
+
+  static Future<void> _addSyncColumns(Database db) async {
+    for (final col in ['serverId TEXT', 'synced INTEGER NOT NULL DEFAULT 0']) {
+      try {
+        final name = col.split(' ').first;
+        final existing = await db.rawQuery('PRAGMA table_info($_productTable)');
+        if (existing.any((c) => c['name'] == name)) continue;
+        await db.execute('ALTER TABLE $_productTable ADD COLUMN $col');
+      } catch (_) {}
+    }
   }
 
   static Future<void> _createProductTable(Database db) async {
@@ -178,7 +202,9 @@ class OcrStore {
         photoCount INTEGER NOT NULL DEFAULT 1,
         meanConfidence REAL NOT NULL DEFAULT 0,
         regionCount INTEGER NOT NULL DEFAULT 0,
-        createdAt INTEGER NOT NULL
+        createdAt INTEGER NOT NULL,
+        serverId TEXT,
+        synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute(
@@ -290,5 +316,36 @@ class OcrStore {
   Future<int> deleteProductScan(int id) async {
     final db = await _open();
     return db.delete(_productTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ------------------------------------------------- server sync (D) ---
+
+  /// Rows saved locally but not yet acknowledged by the server.
+  Future<List<ProductScanRecord>> listUnsyncedScans({int limit = 50}) async {
+    final db = await _open();
+    final rows = await db.query(
+      _productTable,
+      where: 'synced = 0',
+      orderBy: 'createdAt ASC',
+      limit: limit,
+    );
+    return rows.map(ProductScanRecord.fromMap).toList();
+  }
+
+  Future<int> countUnsyncedScans() async {
+    final db = await _open();
+    final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS n FROM $_productTable WHERE synced = 0');
+    return ((rows.first['n'] as num?)?.toInt() ?? 0);
+  }
+
+  Future<int> markScanSynced(int id, String serverId) async {
+    final db = await _open();
+    return db.update(
+      _productTable,
+      {'synced': 1, 'serverId': serverId},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

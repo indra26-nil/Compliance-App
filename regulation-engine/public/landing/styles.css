@@ -1,0 +1,115 @@
+/* Landing — quiet, Claude-like minimal: cream paper, ink serif, one clay accent. */
+:root {
+  --paper: #f7f3ec;
+  --ink: #1f1e1b;
+  --muted: #6f6a61;
+  --line: #e4ddcd;
+  --accent: #d97757;
+  --accent-deep: #b4532a;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+a { color: inherit; }
+
+/* Nav — thin, quiet. */
+.nav { border-bottom: 1px solid var(--line); }
+.nav-inner {
+  display: flex; align-items: center; gap: 28px;
+  padding-top: 16px; padding-bottom: 16px;
+}
+.wordmark {
+  font-family: var(--serif); font-size: 22px; font-weight: 600;
+  text-decoration: none; letter-spacing: -0.01em;
+}
+.nav-links { display: flex; gap: 22px; flex: 1 1 auto; }
+.nav-links a { text-decoration: none; color: var(--muted); font-size: 14.5px; }
+.nav-links a:hover { color: var(--ink); }
+@media (max-width: 640px) { .nav-links { display: none; } }
+
+/* Buttons — clay primary, hairline secondary. */
+.btn {
+  display: inline-block; font: inherit; font-size: 15px; font-weight: 500;
+  text-decoration: none; color: var(--ink); background: transparent;
+  border: 1px solid #cfc7b4; border-radius: 8px; padding: 10px 20px; cursor: pointer;
+}
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+.btn.small { padding: 7px 14px; font-size: 14px; }
+.btn:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent-deep); outline-offset: 3px;
+}
+
+/* Hero — serif does the talking. */
+.hero { padding: 84px 24px 64px; }
+.status {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13.5px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px;
+  margin: 0 0 26px; background: #fdfbf6;
+}
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: #c9c2b2; }
+.status.ok .dot { background: #2f7d4f; }
+.hero h1 {
+  font-family: var(--serif); font-weight: 500; letter-spacing: -0.02em;
+  font-size: clamp(40px, 6vw, 62px); line-height: 1.08; margin: 0 0 20px;
+}
+.lede { font-size: 18px; color: var(--muted); max-width: 60ch; margin: 0 0 30px; }
+.cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Steps — three quiet columns, no cards. */
+.steps {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+  padding-top: 8px; padding-bottom: 64px;
+  border-top: 1px solid var(--line); padding-top: 48px;
+}
+@media (max-width: 720px) { .steps { grid-template-columns: 1fr; } }
+.step-num {
+  font-family: var(--serif); font-size: 15px; color: var(--accent-deep);
+  margin: 0 0 8px;
+}
+.step h2 {
+  font-family: var(--serif); font-weight: 500; font-size: 24px;
+  margin: 0 0 8px; letter-spacing: -0.01em;
+}
+.step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+/* Rules + API sections. */
+.rules, .api { padding-bottom: 56px; }
+.rules h2, .api h2 {
+  font-family: var(--serif); font-weight: 500; font-size: 30px;
+  letter-spacing: -0.01em; margin: 0 0 12px;
+}
+.rule-codes {
+  font-size: 13.5px; line-height: 2; color: var(--muted);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 16px 0; margin: 0 0 12px;
+}
+.hint { color: var(--muted); font-size: 14.5px; margin: 0; max-width: 62ch; }
+.api p { color: var(--muted); max-width: 62ch; }
+.endpoints { list-style: none; margin: 20px 0 0; padding: 0; }
+.endpoints li {
+  display: flex; gap: 16px; align-items: baseline;
+  border-top: 1px solid var(--line); padding: 10px 0; font-size: 14.5px;
+}
+.endpoints li:last-child { border-bottom: 1px solid var(--line); }
+.endpoints code {
+  font-size: 13.5px; background: #efe9da; border-radius: 6px;
+  padding: 2px 8px; white-space: nowrap;
+}
+.endpoints span { color: var(--muted); }
+
+/* Footer. */
+footer { border-top: 1px solid var(--line); }
+.foot-inner {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding-top: 20px; padding-bottom: 28px;
+  font-size: 13.5px; color: var(--muted);
+}
+.foot-inner p { margin: 0; }

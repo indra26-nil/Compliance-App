@@ -1,6 +1,6 @@
 const Product = require("../models/product");
 const Regulation = require("../models/regulation");
-const ValidationResult = require("../models/ValidationResult");
+const ValidationResult = require("../models/validation");
 
 const validateProductController = async (req, res) => {
 
@@ -40,7 +40,7 @@ const validateProductController = async (req, res) => {
         */
 
         const validateProduct =
-            require("../services/validationEngine");
+            require("../services/validation_engine");
 
         const validation =
             validateProduct(product.toObject(), regulation);

@@ -129,3 +129,24 @@ modulo `id`/`photo_paths` (URLs vs local paths).
 4. `pdfkit` template for F reusing the mobile report-card sections.
 5. Deploy: API on Render/Railway, Mongo Atlas, web dashboard on Vercel;
    record URLs in `lib/services/backend_api.dart` header.
+
+## 6. Implementation status (2026-09 — built, contract unchanged)
+
+All five items are done in `regulation-engine/` v2 + the Flutter client;
+nothing above was renamed:
+
+- D: `User` + JWT (`POST /api/auth/login`, 12h), `Scan` model, `POST/GET
+  /api/scans`, versioned `Regulation` docs (`general` + `food`, `2026.09`,
+  full `LM-R6-*` catalog). Import-case bugs fixed
+  (`productControllers`, `regulationController`, `validation`,
+  `validation_engine`). Storage: local `uploads/` by default, Cloudinary
+  when `CLOUDINARY_*` is set, S3 swap point in `src/services/storage.js`.
+- E: `GET /api/dashboard/summary` + static register at `/dashboard`
+  (login, tallies, ranked violations, search/filter table, file drawer).
+- F: `GET /api/reports/:id.pdf` (pdfkit, same sections as the report card)
+  + `GET /api/reports.csv` (same column order as `ExportService.headers`).
+- App: `BackendApi` implemented (`http`), token + server URL in
+  `ServerConfig` (secure storage, `--dart-define=API_BASE_URL=` override),
+  `SyncService` fire-and-forget queue with backoff, `product_scans` v3
+  (`serverId`, `synced`), Server Settings screen, report-card PDF button +
+  sync chips, history sync icons. Deploy guide: `regulation-engine/README.md`.

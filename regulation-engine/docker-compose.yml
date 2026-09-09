@@ -1,0 +1,52 @@
+# One-command whole stack. Default: API (+ dashboard) against MongoDB Atlas
+# using ./env values. Optional pieces are opt-in via compose profiles.
+#
+#   docker compose up -d --build        # API on :5000 (Atlas DB from .env)
+#   docker compose --profile local up -d --build   # + local Mongo instead of Atlas
+#   docker compose --profile tunnel up -d          # + named Cloudflare tunnel
+#   docker compose logs -f api
+#   docker compose down
+
+services:
+  api:
+    build: .
+    image: compliance-api:latest
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      # Persist label photos outside the container (local-storage mode).
+      - ./uploads:/srv/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Optional: throwaway local Mongo instead of Atlas.
+  # Enable with --profile local, and set MONGO_URI=mongodb://mongo:27017/compliance in .env.
+  mongo:
+    image: mongo:7
+    profiles: ["local"]
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  # Optional: serve the API through your named Cloudflare tunnel from inside
+  # Docker. Needs ~/.cloudflared/ (cert + config.yml + credentials file) from
+  # `cloudflared tunnel login/create`. Enable with --profile tunnel.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ${HOME}/.cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

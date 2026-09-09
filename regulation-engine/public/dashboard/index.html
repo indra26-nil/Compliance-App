@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compliance register — Legal Metrology enforcement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="emblem" aria-hidden="true"><span>⚖</span></div>
+    <div class="masthead-title">
+      <p class="masthead-kicker">Legal Metrology · Packaged Commodities Rules, 2011</p>
+      <h1>Compliance register</h1>
+      <p class="masthead-sub">Field scans synced from the inspection app, kept as the shared record.</p>
+    </div>
+    <div class="masthead-meta">
+      <div class="api-row">
+        <label for="apiBase">Server</label>
+        <input id="apiBase" type="url" spellcheck="false" placeholder="https://your-api.onrender.com">
+      </div>
+      <div class="session-row">
+        <span id="sessionInfo" class="session-info">Not signed in</span>
+        <button id="loginBtn" class="btn small" type="button">Sign in</button>
+        <button id="logoutBtn" class="btn small ghost hidden" type="button">Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <section id="loginPanel" class="file-panel hidden" aria-labelledby="loginTitle">
+    <h2 id="loginTitle">Sign in to open the register</h2>
+    <p class="hint">Use the officer account seeded on the server. The token stays in this browser only.</p>
+    <form id="loginForm" class="login-form">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" value="officer@gov.in" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <p id="loginError" class="error hidden" role="alert"></p>
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Open register</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="registerView" class="hidden" aria-live="polite">
+    <div class="register-strip" id="registerStrip">
+      <div class="tally" data-verdict="compliant">
+        <p class="tally-num" id="tallyCompliant">–</p>
+        <p class="tally-name">Compliant files</p>
+      </div>
+      <div class="tally stamp" data-verdict="nonCompliant">
+        <p class="tally-num" id="tallyNonCompliant">–</p>
+        <p class="tally-name">Non-compliant files</p>
+      </div>
+      <div class="tally" data-verdict="needsReview">
+        <p class="tally-num" id="tallyNeedsReview">–</p>
+        <p class="tally-name">Waiting on review</p>
+      </div>
+      <div class="tally total">
+        <p class="tally-num" id="tallyTotal">–</p>
+        <p class="tally-name">Total scans · <span id="passRate">–</span> pass rate</p>
+      </div>
+    </div>
+
+    <div class="ledger-grid">
+      <section class="ledger-section" aria-labelledby="violationsTitle">
+        <div class="section-head">
+          <h2 id="violationsTitle">Most cited rule violations</h2>
+          <p class="hint">Failed rules only. Select a row to filter the file list.</p>
+        </div>
+        <ol id="violationsList" class="violations"></ol>
+      </section>
+
+      <section class="ledger-section" aria-labelledby="filesTitle">
+        <div class="section-head files-head">
+          <div>
+            <h2 id="filesTitle">Files</h2>
+            <p class="hint" id="filesHint">Newest first. The app keeps working offline and syncs here.</p>
+          </div>
+          <div class="file-tools">
+            <input id="searchInput" type="search" placeholder="Search product or OCR text" aria-label="Search product or OCR text">
+            <select id="verdictFilter" aria-label="Filter by verdict">
+              <option value="">All verdicts</option>
+              <option value="compliant">Compliant</option>
+              <option value="nonCompliant">Non-compliant</option>
+              <option value="needsReview">Needs review</option>
+            </select>
+            <select id="categoryFilter" aria-label="Filter by category">
+              <option value="">General + food</option>
+              <option value="general">General</option>
+              <option value="food">Food</option>
+            </select>
+            <button id="csvBtn" class="btn small" type="button">Download sheet</button>
+          </div>
+        </div>
+        <table class="files">
+          <thead>
+            <tr><th>Product</th><th>Verdict</th><th>Score</th><th>Photos</th><th>Filed</th></tr>
+          </thead>
+          <tbody id="filesBody"></tbody>
+        </table>
+        <div class="pager">
+          <button id="prevPage" class="btn small ghost" type="button">Newer</button>
+          <span id="pageInfo">Page 1</span>
+          <button id="nextPage" class="btn small ghost" type="button">Older</button>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<aside id="drawer" class="drawer hidden" aria-labelledby="drawerTitle">
+  <div class="drawer-head">
+    <div>
+      <p class="drawer-kicker" id="drawerKicker">File</p>
+      <h2 id="drawerTitle">Scan detail</h2>
+    </div>
+    <button id="drawerClose" class="btn small ghost" type="button">Close</button>
+  </div>
+  <div id="drawerBody" class="drawer-body"></div>
+  <div class="drawer-foot">
+    <button id="pdfBtn" class="btn primary" type="button">Save archival PDF</button>
+  </div>
+</aside>
+<div id="scrim" class="scrim hidden"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>

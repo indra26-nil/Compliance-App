@@ -1,0 +1,14 @@
+# Cloudflare Tunnel config — copy to ~/.cloudflared/config.yml
+# (replace the tunnel ID + domain), then run:
+#   cloudflared tunnel run compliance-api
+#
+# Created with: cloudflared tunnel create compliance-api
+# DNS routed with: cloudflared tunnel route dns compliance-api api.yourdomain.com
+tunnel: PASTE-TUNNEL-ID-HERE
+credentials-file: /home/shian/.cloudflared/PASTE-TUNNEL-ID-HERE.json
+
+ingress:
+  - hostname: api.yourdomain.com
+    service: http://localhost:5000
+  # Catch-all (required, must be last):
+  - service: http_status:404

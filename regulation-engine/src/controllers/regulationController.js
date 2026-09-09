@@ -34,8 +34,12 @@ const getRegulations = async (req, res) => {
 
     try {
 
+        const filter = {};
+        if (req.query.category) {
+            filter.category = String(req.query.category).toLowerCase();
+        }
         const regulations =
-            await Regulation.find();
+            await Regulation.find(filter).sort({ category: 1 });
 
         res.json({
 

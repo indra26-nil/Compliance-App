@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'screens/history_screen.dart';
 import 'screens/processing_screen.dart';
+import 'screens/server_settings_screen.dart';
 import 'services/ocr_service.dart';
 import 'services/rule_engine.dart';
 import 'services/scan_pipeline.dart';
@@ -142,6 +143,16 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
         backgroundColor: colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            tooltip: 'Server & sync',
+            icon: const Icon(Icons.cloud_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const ServerSettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Saved products & export',
             icon: const Icon(Icons.history),

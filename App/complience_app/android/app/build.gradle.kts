@@ -6,8 +6,9 @@ plugins {
 
 android {
     namespace = "com.example.complience_app"
-    // Paddle OCR's transitive deps require compileSdk >= 34.
-    compileSdk = 36
+    // Paddle OCR's transitive deps require compileSdk >= 34;
+    // flutter_secure_storage v11 requires >= 37.
+    compileSdk = 37
     // Highest NDK required by plugins (camera etc.); backward compatible.
     ndkVersion = "28.2.13676358"
 

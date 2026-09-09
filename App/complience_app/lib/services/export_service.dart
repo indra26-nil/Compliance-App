@@ -104,6 +104,14 @@ class ExportService {
     return file.writeAsString(csv);
   }
 
+  /// Writes raw bytes (server PDF from F) to a shareable temp file.
+  Future<File> writeBytesForShare(List<int> bytes, String filename) async {
+    final dir = await getTemporaryDirectory();
+    final safe = filename.replaceAll(RegExp(r'[^\w\-.]+'), '_');
+    final file = File('${dir.path}/$safe');
+    return file.writeAsBytes(bytes, flush: true);
+  }
+
   List<String> _row(ProductScanRecord r) {
     ComplianceReport? report;
     try {

@@ -7,6 +7,7 @@ import '../services/export_service.dart';
 import '../services/ocr_store.dart';
 import 'compliance_report_screen.dart';
 import 'result_screen.dart';
+import 'server_settings_screen.dart';
 
 /// Saved products + scan history (offline repository).
 ///
@@ -18,9 +19,9 @@ import 'result_screen.dart';
 /// Tab 2 — **Old scans**: legacy single-photo OCR texts from before the
 /// compliance workflow (kept so no data is lost).
 ///
-/// TODO(BACKEND-E): add server search (`GET /api/scans?q=`) here alongside
-/// the local list once the dashboard backend exists. The local filter below
-/// already matches that API's `q` + `verdict` semantics.
+/// Server search (`GET /api/scans?q=`) lives on the web dashboard (E) at
+/// `/dashboard`; the local filter below matches that API's `q` + `verdict`
+/// semantics so officers get the same results in both places.
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -104,6 +105,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ],
           ),
           actions: [
+            IconButton(
+              tooltip: 'Server & sync',
+              icon: const Icon(Icons.cloud_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const ServerSettingsScreen()),
+                ).then((_) => _refresh());
+              },
+            ),
             IconButton(
               tooltip: 'Export all products (Excel-compatible CSV)',
               icon: _exporting
@@ -208,7 +219,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           '${r.photoCount} photo${r.photoCount == 1 ? '' : 's'} • '
                           '${_formatDate(r.createdAt)}',
                         ),
-                        trailing: _verdictDot(r.verdict),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              r.synced
+                                  ? Icons.cloud_done_outlined
+                                  : Icons.cloud_off_outlined,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                            const SizedBox(width: 6),
+                            _verdictDot(r.verdict),
+                          ],
+                        ),
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(

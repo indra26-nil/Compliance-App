@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compliance — Legal Metrology label checks</title>
+<meta name="description" content="Offline-first label compliance checks for Legal Metrology officers, with a shared register, dashboard and archival reports.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/landing/styles.css">
+</head>
+<body>
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="wordmark" href="/">Compliance</a>
+    <nav class="nav-links">
+      <a href="/dashboard">Register</a>
+      <a href="#how">How it works</a>
+      <a href="#api">API</a>
+    </nav>
+    <a class="btn primary small" href="/dashboard">Sign in</a>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero">
+    <p class="status" id="status"><span class="dot" aria-hidden="true"></span><span id="statusText">Checking server…</span></p>
+    <h1>Label compliance,<br>checked in the field.</h1>
+    <p class="lede">Officers photograph a pack, the app verifies every mandatory declaration against the Legal Metrology (Packaged Commodities) Rules on-device — then files the report here, in the shared register.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/dashboard">Open the register</a>
+      <a class="btn" href="#how">How it works</a>
+    </div>
+  </section>
+
+  <section class="wrap steps" id="how">
+    <div class="step">
+      <p class="step-num">1</p>
+      <h2>Scan offline</h2>
+      <p>Front panel, MRP close-up, dates, care block. OCR and rule-checks run on the phone — no signal needed.</p>
+    </div>
+    <div class="step">
+      <p class="step-num">2</p>
+      <h2>It files itself</h2>
+      <p>Each finished report syncs in the background: photos, verdict, score and per-rule evidence.</p>
+    </div>
+    <div class="step">
+      <p class="step-num">3</p>
+      <h2>Review here</h2>
+      <p>Supervisors search files, study violations, download archival PDFs and the Excel sheet.</p>
+    </div>
+  </section>
+
+  <section class="wrap rules">
+    <h2>Checked against the 2011 rules</h2>
+    <p class="rule-codes">LM-R6-NAME · LM-R6-COMMON · LM-R6-NETQ · LM-R6-DATE-MFG · LM-R6-DATE-EXP · LM-R6-MRP · LM-R6-MRP-TAX · LM-R9-SINGLE-MRP · LM-R6-CARE · LM-R6-ORIGIN · LM-R6-BATCH · LM-FOOD-FSSAI · LM-READ-QUALITY · LM-R7-FONT</p>
+    <p class="hint">Fail means a proven violation on a readable pack. Unverified means retake the photo — never a penalty for a weak capture.</p>
+  </section>
+
+  <section class="wrap api" id="api">
+    <h2>Built for machines too</h2>
+    <p>Every screen here is backed by a documented JSON API with the same field names and rule codes as the app.</p>
+    <ul class="endpoints">
+      <li><code>POST /api/auth/login</code><span>Officer sign-in, JWT</span></li>
+      <li><code>POST /api/scans</code><span>File a product scan</span></li>
+      <li><code>GET /api/dashboard/summary</code><span>Register statistics</span></li>
+      <li><code>GET /api/reports/:id.pdf</code><span>Archival copy</span></li>
+      <li><code>GET /api/reports.csv</code><span>Bulk sheet</span></li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-inner">
+    <p>Compliance register · Packaged Commodities Rules, 2011</p>
+    <p><a href="/dashboard">Register</a> · <span id="storageNote"></span></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  fetch("/", { headers: { "Accept": "application/json" } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      document.getElementById("statusText").textContent = "Server online";
+      document.getElementById("status").classList.add("ok");
+      document.getElementById("storageNote").textContent =
+        "Photo storage: " + (d.storage || "local");
+    })
+    .catch(function () {
+      document.getElementById("statusText").textContent = "Server unreachable";
+    });
+})();
+</script>
+</body>
+</html>

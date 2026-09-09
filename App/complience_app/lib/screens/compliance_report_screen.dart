@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../services/backend_api.dart';
 import '../services/export_service.dart';
 import '../services/field_extractor.dart';
 import '../services/ocr_store.dart';
 import '../services/rule_engine.dart';
+import '../services/sync_service.dart';
 
 /// Report card for one saved product scan (the compliance verdict screen).
 ///
@@ -19,10 +21,9 @@ import '../services/rule_engine.dart';
 /// Everything renders from the stored [ProductScanRecord.reportJson] —
 /// no re-OCR needed, fully offline.
 ///
-/// TODO(BACKEND-F): add a "Download official PDF" button here calling
-/// `BackendApi.downloadReportPdf(serverId)` once the server exists. The
-/// sections below (verdict, violations, evidence photos) already match that
-/// PDF's layout — see `docs/backend_api_contract.md`.
+/// TODO(BACKEND-F): wired — the action below downloads the signed server
+/// copy via `BackendApi.downloadReportPdf(serverId)`. The sections above
+/// (verdict, violations, evidence photos) already match that PDF's layout.
 class ComplianceReportScreen extends StatefulWidget {
   const ComplianceReportScreen({
     super.key,
@@ -42,6 +43,8 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
   late ProductScanRecord _record;
   ComplianceReport? _report;
   bool _sharing = false;
+  bool _pdfBusy = false;
+  bool _syncBusy = false;
 
   @override
   void initState() {
@@ -129,6 +132,62 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    if (_pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      var serverId = _record.serverId;
+      if (serverId == null || serverId.isEmpty) {
+        // Try a sync pass first (officer may have just signed in).
+        setState(() => _syncBusy = true);
+        try {
+          await SyncService.instance.syncNow();
+        } finally {
+          if (mounted) setState(() => _syncBusy = false);
+        }
+        final id = _record.id;
+        if (id != null) {
+          final refreshed = await OcrStore.instance.getProductScan(id);
+          if (refreshed != null && mounted) {
+            setState(() => _record = refreshed);
+            serverId = refreshed.serverId;
+          }
+        }
+      }
+      if (serverId == null || serverId.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Not on the server yet — sign in under Server & sync, then Sync now.'),
+          ),
+        );
+        return;
+      }
+      final bytes = await BackendApi.instance.downloadReportPdf(serverId);
+      final file = await const ExportService()
+          .writeBytesForShare(bytes, 'compliance-$serverId.pdf');
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: 'Official compliance report — ${_record.productName}',
+          text: 'Signed archival copy from the server.',
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not fetch official PDF: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -158,6 +217,17 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
                 : const Icon(Icons.share_outlined),
             onPressed: _sharing ? null : _shareCsv,
           ),
+          IconButton(
+            tooltip: 'Official PDF from server (F)',
+            icon: _pdfBusy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: _pdfBusy ? null : _downloadPdf,
+          ),
         ],
       ),
       body: SafeArea(
@@ -167,6 +237,8 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   _VerdictBanner(record: _record, report: report),
+                  const SizedBox(height: 8),
+                  _SyncChip(record: _record, syncing: _syncBusy),
                   const SizedBox(height: 12),
                   _PhotoStrip(paths: _record.imagePaths),
                   const SizedBox(height: 12),
@@ -233,6 +305,39 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Back'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Server sync status for one saved scan (D).
+class _SyncChip extends StatelessWidget {
+  const _SyncChip({required this.record, required this.syncing});
+
+  final ProductScanRecord record;
+  final bool syncing;
+
+  @override
+  Widget build(BuildContext context) {
+    final synced = record.synced && (record.serverId?.isNotEmpty ?? false);
+    final (icon, label) = syncing
+        ? (Icons.sync_outlined, 'Syncing to server…')
+        : synced
+            ? (Icons.cloud_done_outlined, 'Synced to server')
+            : (Icons.cloud_off_outlined,
+                'On this device only — sign in & sync to file it');
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.secondary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+          ),
         ),
       ],
     );

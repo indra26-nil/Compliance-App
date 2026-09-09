@@ -1,0 +1,23 @@
+# Render Blueprint — compliance server (D/E/F) + dashboard (E)
+# One-click deploy: Render dashboard → New → Blueprint → point at the repo.
+services:
+  - type: web
+    name: compliance-api
+    runtime: node
+    rootDir: regulation-engine
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: MONGO_URI
+        sync: false # paste your MongoDB Atlas connection string
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BASE_URL
+        sync: false # e.g. https://compliance-api.onrender.com
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
