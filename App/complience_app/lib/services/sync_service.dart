@@ -1,7 +1,6 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -18,8 +17,9 @@ import 'server_config.dart';
 /// * Uploads run only when a token exists and the device is online
 ///   (`connectivity_plus`); failures retry with exponential backoff on the
 ///   next enqueue / app start / manual "Sync now".
-/// * Missing photo files (user cleared cache) still upload the report JSON
-///   with zero photos rather than dropping the record.
+/// * Text-only sync: report JSON + OCR text go up; photos stay on-device.
+///   (Photo evidence upload is a server-side switch away when needed —
+///   pass paths to [BackendApi.uploadScan].)
 
 class SyncService {
   SyncService._();
@@ -50,19 +50,11 @@ class SyncService {
         try {
           final id = record.id;
           if (id == null) continue;
-          final photos = record.imagePaths
-              .where((p) {
-                try {
-                  return File(p).existsSync();
-                } catch (_) {
-                  return false;
-                }
-              })
-              .toList();
+          // Text-only: photos stay on-device (see class docs).
           final res = await BackendApi.instance.uploadScan(
             productName: record.productName,
             category: record.category,
-            imagePaths: photos,
+            imagePaths: const [],
             reportJson: record.reportJson,
             ocrText: record.ocrText,
           );
