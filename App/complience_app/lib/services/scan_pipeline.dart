@@ -18,7 +18,7 @@
 /// 3. [extractProduct] runs label→value spatial association + strict
 ///    validators + quarantines (barcode/FSSAI/unit-price traps) and merges
 ///    across photos (best-status-wins). [ExtractionMode] selects how the
-///    Option-B MiniLM votes are used.
+///    smart-assist votes are used.
 /// 4. [rereadVariableFields] retries UNVERIFIED dot-matrix fields
 ///    (batch/MRP/dates) with cropped, enhanced re-OCR variants.
 /// 5. [RuleEngine.check] maps observations to PASS/FAIL/UNVERIFIED —
@@ -47,9 +47,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import 'embedder.dart';
 import 'field_extractor.dart';
-import 'line_classifier.dart';
+import 'ngram_classifier.dart';
 import 'ocr_layout.dart';
 import 'ocr_preprocess.dart';
 import 'ocr_service.dart';
@@ -73,10 +72,10 @@ enum ExtractionMode {
   /// Best when OCR text is clean and labels read verbatim.
   regex,
 
-  /// MiniLM line-vote fusion (Option B): classifier votes rescue garbled
-  /// labels (`MPP Rs`, `NETUT 90g`), regexes stay as validators.
-  /// Falls back to [regex] when the embedding model isn't ready.
-  minilm,
+  /// Smart-assist vote fusion: classifier votes rescue garbled labels
+  /// (`MPP Rs`, `NETUT 90g`), regexes stay as validators.
+  /// Falls back to [regex] when the text model isn't ready.
+  assisted,
 
   /// Runs BOTH paths and merges best-status-wins per field
   /// ([ExtractedProduct.merge]). Slowest, most forgiving: a declaration
@@ -89,15 +88,15 @@ enum ExtractionMode {
 extension ExtractionModeUi on ExtractionMode {
   String get title => switch (this) {
         ExtractionMode.regex => 'Regex formatting',
-        ExtractionMode.minilm => 'MiniLM assist',
+        ExtractionMode.assisted => 'Smart assist',
         ExtractionMode.ensemble => 'Ensemble (both)',
       };
 
   String get subtitle => switch (this) {
         ExtractionMode.regex =>
           'Auto-format with rules only. Fastest, fully offline, no model.',
-        ExtractionMode.minilm =>
-          'Small on-device model rescues garbled labels; rules still validate.',
+        ExtractionMode.assisted =>
+          'On-device text model rescues garbled labels; rules still validate.',
         ExtractionMode.ensemble =>
           'Runs both and keeps the best of each field. Slowest, most forgiving.',
       };
@@ -173,44 +172,38 @@ class PendingScan {
 class ScanPipeline {
   const ScanPipeline();
 
-  /// Shared Option-B classifier (prototype embeddings cached after first
-  /// warm-up — one batched inference per scan, never per line).
-  static final LineClassifier _lineClassifier = LineClassifier();
+  /// Shared smart-assist classifier (weights parsed once at warm-up, then
+  /// microseconds per line — pure Dart, no model download).
+  static final NgramClassifier _classifier = NgramClassifier();
 
   /// Best-effort background warm-up (call from app start; safe to ignore).
-  /// Covers both the MiniLM session and the prototype bank.
   static Future<void> warmUpClassifier() async {
     try {
-      await MiniLMEmbedder.instance.warmUp();
-      await _lineClassifier.warmUp();
+      await _classifier.warmUp();
     } catch (_) {
-      // Offline fallback: extraction runs regex-only.
+      // Fallback: extraction runs regex-only.
     }
   }
 
-  /// True when MiniLM votes are actually available on this device.
+  /// True when smart-assist votes are actually available on this device.
   /// The OCR-review screen uses this to mark modes available vs fallback.
-  static bool get isClassifierReady =>
-      MiniLMEmbedder.instance.isReady && _lineClassifier.isReady;
+  static bool get isClassifierReady => _classifier.isReady;
 
-  /// Retries both the MiniLM session and the prototype bank
+  /// Reloads the text-model weights
   /// (plain [warmUpClassifier] never retries a completed failure).
   static Future<void> retryClassifier() async {
     try {
-      await MiniLMEmbedder.instance.retry();
-      await _lineClassifier.retry();
+      await _classifier.retry();
     } catch (_) {
       // Status strings below carry the reason.
     }
   }
 
-  /// Officer-facing MiniLM status for the OCR-review screen.
+  /// Officer-facing assist-model status for the OCR-review screen.
   static String classifierStatus() {
     if (isClassifierReady) return 'ready';
-    final modelErr = MiniLMEmbedder.instance.lastError;
-    final bankErr = _lineClassifier.lastError;
+    final modelErr = _classifier.lastError;
     if (modelErr != null) return 'model load failed: $modelErr';
-    if (bankErr != null) return 'prototype build failed: $bankErr';
     return 'still loading — open this screen again in a few seconds '
         'if it persists, use Retry.';
   }
@@ -374,19 +367,19 @@ class ScanPipeline {
     switch (mode) {
       case ExtractionMode.regex:
         product = extractProduct(layouts);
-        modeNote = 'Regex-only path (MiniLM not used).';
-      case ExtractionMode.minilm:
+        modeNote = 'Regex-only path (smart assist not used).';
+      case ExtractionMode.assisted:
         final lineLabels = await _classifyAllLines(layouts);
         product = extractProduct(layouts, lineLabels: lineLabels);
         modeNote = lineLabels == null
-            ? 'MiniLM unavailable on this device — fell back to regex-only.'
-            : 'MiniLM votes fused with regex validators.';
+            ? 'Smart assist unavailable on this device — fell back to regex-only.'
+            : 'Smart-assist votes fused with regex validators.';
       case ExtractionMode.ensemble:
         final lineLabels = await _classifyAllLines(layouts);
         if (lineLabels == null) {
           product = extractProduct(layouts);
           modeNote =
-              'MiniLM unavailable — ensemble degraded to regex-only.';
+              'Smart assist unavailable — ensemble degraded to regex-only.';
         } else {
           // Best-status-wins per field across both runs; validators hold
           // in both, so quarantines (barcode≠MRP) survive the merge.
@@ -395,13 +388,17 @@ class ScanPipeline {
             extractProduct(layouts, lineLabels: lineLabels),
           ]);
           modeNote =
-              'Ensemble: best-per-field of regex-only ∪ MiniLM runs.';
+              'Ensemble: best-per-field of regex-only ∪ smart-assist runs.';
         }
     }
 
     // Variable-print re-read (dot-matrix batch/MRP/dates) — best-effort.
     // Crops come from the ORIGINAL photos, so officer line edits to the
     // main pass don't invalidate this pass; strict patterns, never forced.
+    // Bounded: this used to await unbounded sequential native OCRs (plus a
+    // half-photo bottom-strip at 4x upscale) with no timeout, hanging the
+    // "Extracting…" button forever — even on Regex-only. Now capped to a
+    // few small jobs with an overall budget; timeout keeps main-pass result.
     try {
       final targets = targetsFromProduct(product);
       if (targets.isNotEmpty) {
@@ -409,6 +406,10 @@ class ScanPipeline {
           originals: ocr.originals,
           origSizes: ocr.origSizes,
           targets: targets,
+          // Bottom-strip (half-photo) retry disabled here: it creates the
+          // giant crops that OOM/hang native OCR. Small label-adjacent
+          // rects already cover the dot-matrix case.
+          bottomStripFallback: false,
           recognize: (
             Uint8List preparedBytes, {
             int maxSideLen = 1200,
@@ -419,6 +420,9 @@ class ScanPipeline {
             maxSideLen: maxSideLen,
             photoIndex: photoIndex,
           ),
+        ).timeout(
+          const Duration(seconds: 25),
+          onTimeout: () => <String, FieldObservation>{},
         );
         if (improved.isNotEmpty) {
           final fields = Map<String, FieldObservation>.from(product.fields);
@@ -523,7 +527,7 @@ class ScanPipeline {
     required List<String> imagePaths,
     required String productName,
     ProductCategory category = ProductCategory.general,
-    ExtractionMode mode = ExtractionMode.minilm,
+    ExtractionMode mode = ExtractionMode.assisted,
     void Function(ScanStage stage)? onStage,
     void Function(int done, int total)? onPhotoProgress,
   }) async {
@@ -549,15 +553,15 @@ class ScanPipeline {
         FieldStatus.notFound => 0,
       };
 
-  /// Builds Option-B classifier votes for every OCR line in one batch.
-  /// Returns null when the embedding model isn't ready — the caller then
+  /// Builds smart-assist votes for every OCR line (microseconds per line,
+  /// pure Dart — no batched inference needed).
+  /// Returns null when the text model isn't ready — the caller then
   /// uses the regex/spatial-only extraction path (fully tested fallback).
   ///
-  /// The whole vote step (warm-up + batched inference) is bounded by
-  /// [_classifyBudget]: on-device inference is seconds, so a stall (slow
-  /// first load, wedged isolate) degrades to regex-only instead of spinning
-  /// the "Extracting…" indicator forever.
-  static const Duration _classifyBudget = Duration(seconds: 60);
+  /// The vote step is bounded by [_classifyBudget]: without a bound a
+  /// stall would spin the "Extracting…" indicator forever. On timeout we
+  /// fall back to regex-only with a note (same as model-unavailable).
+  static const Duration _classifyBudget = Duration(seconds: 10);
 
   static Future<LineLabelMap?> _classifyAllLines(
       List<PageLayout> layouts) async {
@@ -573,14 +577,13 @@ class ScanPipeline {
   static Future<LineLabelMap?> _classifyAllLinesInner(
       List<PageLayout> layouts) async {
     try {
-      await MiniLMEmbedder.instance.warmUp();
-      await _lineClassifier.warmUp();
-      if (!_lineClassifier.isReady) return null;
+      await _classifier.warmUp();
+      if (!_classifier.isReady) return null;
       final allLines = <LayoutLine>[
         for (final layout in layouts) ...layout.lines,
       ];
       if (allLines.isEmpty) return null;
-      final votes = await _lineClassifier
+      final votes = await _classifier
           .classify([for (final l in allLines) l.text]);
       if (votes.length != allLines.length) return null;
       return {for (var i = 0; i < allLines.length; i++) allLines[i]: votes[i]};

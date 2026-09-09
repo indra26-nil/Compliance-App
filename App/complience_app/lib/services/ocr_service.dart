@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -220,12 +221,20 @@ class OcrService {
   }) async {
     final engine = await _ensureEngine();
     status.value = 'Re-reading small print...';
-    final raw = await engine.recognize(
+    // Bound native re-read: without this a stalled native call hangs the
+    // "Extracting…" button forever (no timeout upstream can cancel it).
+    final raw = await engine
+        .recognize(
       preparedBytes,
       maxSideLen: maxSideLen,
       runDetection: true,
       runClassification: false,
       runRecognition: true,
+    )
+        .timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException(
+          'Small-print re-read timed out after 15s'),
     );
     final out = <OcrToken>[];
     for (final r in raw) {

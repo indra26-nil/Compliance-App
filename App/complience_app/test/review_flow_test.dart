@@ -29,6 +29,9 @@ OcrBundle bundle(List<PageLayout> layouts) => OcrBundle(
     );
 
 void main() {
+  // The assist classifier loads its weights via rootBundle.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('staged pipeline', () {
     test('regex mode extracts without classifier', () async {
       final layouts = [
@@ -49,22 +52,39 @@ void main() {
       expect(pending.mode, ExtractionMode.regex);
     });
 
-    test('ensemble degrades to regex when MiniLM unavailable', () async {
+    test('assisted + ensemble modes use the real on-device classifier',
+        () async {
       final layouts = [
         lay([
           t('NET QTY:', 0.9, 80, 300, 220, 25),
           t('80g', 0.94, 320, 300, 100, 25),
+          t('MPP Rs 42.00', 0.7, 80, 340, 420, 25),
         ])
       ];
-      final pending = await const ScanPipeline().extractWithMode(
+      // Pure-Dart classifier: works in the test env too (no native libs).
+      expect(ScanPipeline.isClassifierReady, isFalse);
+      await ScanPipeline.warmUpClassifier();
+      expect(ScanPipeline.isClassifierReady, isTrue);
+
+      final assisted = await const ScanPipeline().extractWithMode(
+        ocr: bundle(layouts),
+        productName: 'Test',
+        category: ProductCategory.general,
+        mode: ExtractionMode.assisted,
+      );
+      expect(assisted.modeNote, contains('Smart-assist votes'));
+      // Garbled MRP label rescued by votes (regex-only misses it).
+      expect(assisted.product.mrp.status, FieldStatus.found);
+
+      final ensemble = await const ScanPipeline().extractWithMode(
         ocr: bundle(layouts),
         productName: 'Test',
         category: ProductCategory.general,
         mode: ExtractionMode.ensemble,
       );
-      // Test env has no ONNX backend: classifier not ready → regex result.
-      expect(pending.product.netQty.status, FieldStatus.found);
-      expect(pending.modeNote, contains('regex'));
+      expect(ensemble.modeNote, contains('Ensemble'));
+      expect(ensemble.product.mrp.status, FieldStatus.found);
+      expect(ensemble.product.netQty.status, FieldStatus.found);
     });
 
     test('line edits preserve boxes, change text', () {

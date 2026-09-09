@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 
 import 'screens/history_screen.dart';
 import 'screens/processing_screen.dart';
-import 'services/embedder.dart';
 import 'services/ocr_service.dart';
 import 'services/rule_engine.dart';
 import 'services/scan_pipeline.dart';
@@ -40,10 +39,9 @@ class _HomePageState extends State<HomePage> {
     // Start copying models + loading the native engine early so the first
     // scan doesn't pay the full ~1-2s init cost.
     OcrService.instance.warmUp().ignore();
-    // Option-B text understanding warms in the background (best-effort):
-    // prototype embeddings are cached so the first scan pays no extra cost.
+    // Smart-assist text model warms in the background (best-effort, pure
+    // Dart): weights parse once so the first scan pays no extra cost.
     // Falls back to regex-only extraction when unavailable.
-    MiniLMEmbedder.instance.warmUp().ignore();
     ScanPipeline.warmUpClassifier().ignore();
   }
 

@@ -14,7 +14,7 @@ import 'field_review_screen.dart';
 /// lines become declarations before any extraction runs:
 ///
 /// * [ExtractionMode.regex] — auto formatting with rules only (fastest).
-/// * [ExtractionMode.minilm] — small on-device model rescues garbled
+/// * [ExtractionMode.assisted] — on-device text model rescues garbled
 ///   labels; regexes stay as validators (never deciders).
 /// * [ExtractionMode.ensemble] — runs both, keeps the best of each field.
 ///
@@ -57,18 +57,18 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
         _controllers[key] = TextEditingController(text: text);
       }
     }
-    // Prefer MiniLM when its models are actually ready on this device;
-    // otherwise regex (MiniLM would only fall back anyway). Warm-up may
+    // Prefer smart assist when its model is actually ready on this device;
+    // otherwise regex (assist would only fall back anyway). Warm-up may
     // still be finishing while the officer reviews lines — refresh when
     // it lands (without overriding an explicit mode pick).
     _ready = ScanPipeline.isClassifierReady;
     _mode =
-        _ready ? ExtractionMode.minilm : ExtractionMode.regex;
+        _ready ? ExtractionMode.assisted : ExtractionMode.regex;
     ScanPipeline.warmUpClassifier().then((_) {
       if (!mounted) return;
       setState(() {
         _ready = ScanPipeline.isClassifierReady;
-        if (_ready && !_modeTouched) _mode = ExtractionMode.minilm;
+        if (_ready && !_modeTouched) _mode = ExtractionMode.assisted;
       });
     });
   }
@@ -114,7 +114,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
     setState(() {
       _warming = false;
       _ready = ScanPipeline.isClassifierReady;
-      if (_ready && !_modeTouched) _mode = ExtractionMode.minilm;
+      if (_ready && !_modeTouched) _mode = ExtractionMode.assisted;
     });
   }
 
@@ -193,9 +193,9 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              'MiniLM unavailable: '
+                              'Smart assist unavailable: '
                               '${ScanPipeline.classifierStatus()} '
-                              'MiniLM / Ensemble will fall back to '
+                              'Smart assist / Ensemble will fall back to '
                               'regex-only with a note.',
                               style: const TextStyle(fontSize: 12),
                             ),

@@ -22,7 +22,7 @@
 /// 6. Every observation carries evidence (label, relationship, bbox, method).
 library;
 
-import 'line_classifier.dart';
+import 'ngram_classifier.dart';
 import 'ocr_layout.dart';
 import 'ocr_tokens.dart';
 
@@ -753,7 +753,7 @@ List<({LayoutLine line, String rel, double prox})> _nearbyLines(
 /// Line-level classifier votes, keyed by line identity. Null (or missing
 /// entries) = classifier unavailable → pure regex/spatial path, exactly the
 /// pre-B behavior. The pipeline builds this once per scan (one batched
-/// inference for ALL lines of ALL photos) via `LineClassifier`.
+/// inference for ALL lines of ALL photos) via `NgramClassifier`.
 typedef LineLabelMap = Map<LayoutLine, LineLabel>;
 
 /// Minimum classifier confidence to count as a vote.

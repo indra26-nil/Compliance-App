@@ -54,7 +54,7 @@ First launch copies the bundled PP-OCRv5 models from assets
 Home (product name + category + 1..N photos)
   → "Scan N photos"
   → Processing screen (OCR per photo, never freezes)
-  → OCR review (fix lines, auto-clean, pick Regex / MiniLM / Ensemble)
+  → OCR review (fix lines, auto-clean, pick Regex / Smart assist / Ensemble)
   → Field review (confirm/correct declarations pre-rules)
   → Report card (verdict + score + declarations + rule evidence) [auto-saved]
   → Saved products (search, open any report, export all to CSV/Excel)
@@ -152,7 +152,7 @@ distinctly (✓ PASS green, ✕ FAIL red, UNVERIFIED orange with guidance).
 |---|---|---|
 | Scanner setup | `lib/home_page.dart` | name, category, multi-photo grid, Scan button |
 | Loader | `processing_screen.dart` | OCR per photo + progress + retry |
-| **OCR review** | `ocr_review_screen.dart` | fix lines, auto-clean, Regex/MiniLM/Ensemble pick |
+| **OCR review** | `ocr_review_screen.dart` | fix lines, auto-clean, Regex/Smart-assist/Ensemble pick |
 | **Field review** | `field_review_screen.dart` | confirm/correct declarations pre-rules |
 | **Report card** | `compliance_report_screen.dart` | verdict banner, declarations table, rule cards with evidence, OCR text, rename, share CSV |
 | Saved products | `history_screen.dart` | Products tab (search, verdict dots, export-all) + Old scans tab (legacy data) |
@@ -215,7 +215,7 @@ verb + path + request/response JSON, throws `UnimplementedError`).
 App/complience_app/
   lib/home_page.dart                  scanner setup (multi-photo)
   lib/screens/processing_screen.dart  OCR loader (stage 1)
-  lib/screens/ocr_review_screen.dart  line fixes + Regex/MiniLM/Ensemble pick
+  lib/screens/ocr_review_screen.dart  line fixes + Regex/Smart-assist/Ensemble pick
   lib/screens/field_review_screen.dart  declaration fixes pre-rules
   lib/screens/compliance_report_screen.dart   report card  ★
   lib/screens/history_screen.dart     saved products + CSV export

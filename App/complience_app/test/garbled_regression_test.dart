@@ -1,5 +1,5 @@
 import 'package:complience_app/services/field_extractor.dart';
-import 'package:complience_app/services/line_classifier.dart';
+import 'package:complience_app/services/ngram_classifier.dart';
 import 'package:complience_app/services/ocr_layout.dart';
 import 'package:complience_app/services/ocr_tokens.dart';
 import 'package:complience_app/services/rule_engine.dart';
@@ -48,8 +48,9 @@ void main() {
         quality: adequate,
         combinedText: layout.debugText);
 
-    // B-votes path — votes as the real MiniLM int8 model emits
-    // (verified in /tmp/opencode/eval_minilm.py: 13/14, conf 0.95-1.0).
+    // B-votes path — votes as the assist classifier emits
+    // (verified in tool/train_line_clf.py: 1.00 on 324 synthetic noisy
+    // lines; 10/12 on the real garbled lines below).
     LineLabelMap votesFor(PageLayout l) {
       LineLabel v(String field, [double c = 1.0]) =>
           LineLabel(field: field, confidence: c);

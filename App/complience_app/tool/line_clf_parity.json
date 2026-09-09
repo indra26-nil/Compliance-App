@@ -1,0 +1,102 @@
+[
+ {
+  "text": "Lay's",
+  "field": "brand",
+  "prob": 0.941349
+ },
+ {
+  "text": "Potato Chips",
+  "field": "product_name",
+  "prob": 0.952947
+ },
+ {
+  "text": "NETUT 80g",
+  "field": "net_qty",
+  "prob": 0.941991
+ },
+ {
+  "text": "MPP Rs 42.00",
+  "field": "mrp",
+  "prob": 0.951099
+ },
+ {
+  "text": "(inclusive of all taxes)",
+  "field": "mrp",
+  "prob": 0.813302
+ },
+ {
+  "text": "Mfd. by PepsiCo India Holdings Pvt. Ltd.,",
+  "field": "manufacturer",
+  "prob": 0.93331
+ },
+ {
+  "text": "SCO 29-30, Sector 17, Chandigarh 160017",
+  "field": "brand",
+  "prob": 0.17971
+ },
+ {
+  "text": "C022- 67740100 AND",
+  "field": "care",
+  "prob": 0.960927
+ },
+ {
+  "text": "CONSUMER.FEEDBACK@PEPSICO.COM",
+  "field": "care",
+  "prob": 0.938216
+ },
+ {
+  "text": "FSSL No. 10012083000110",
+  "field": "fssai",
+  "prob": 0.961583
+ },
+ {
+  "text": "8 901234 567890",
+  "field": "barcode",
+  "prob": 0.936568
+ },
+ {
+  "text": "Lay's is a Trade Mark of PepsiCo, Inc.",
+  "field": "brand",
+  "prob": 0.845105
+ },
+ {
+  "text": "",
+  "field": "brand",
+  "prob": 0.180954
+ },
+ {
+  "text": "   ",
+  "field": "brand",
+  "prob": 0.180954
+ },
+ {
+  "text": "!!!",
+  "field": "brand",
+  "prob": 0.180954
+ },
+ {
+  "text": "MRP",
+  "field": "mrp",
+  "prob": 0.930247
+ },
+ {
+  "text": "Rs. 1,299",
+  "field": "mrp",
+  "prob": 0.773897
+ },
+ {
+  "text": "MRP ₹ 99 (inclusive of all taxes)",
+  "field": "mrp",
+  "prob": 0.953912
+ },
+ {
+  "text": "NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g ",
+  "field": "net_qty",
+  "prob": 0.986859
+ },
+ {
+  "text": "mfd by pepsico india",
+  "field": "brand",
+  "prob": 0.435568
+ }
+]

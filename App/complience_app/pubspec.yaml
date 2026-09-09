@@ -42,7 +42,6 @@ dependencies:
   sqflite: ^2.4.0
   image: ^4.5.4
   share_plus: ^13.3.0
-  onnxruntime: ^1.4.1
 
 dev_dependencies:
   flutter_test:
@@ -70,11 +69,10 @@ flutter:
     - assets/models/PP-OCRv5_mobile_det.onnx
     - assets/models/PP-OCRv5_mobile_rec.onnx
     - assets/models/ppocr_keys_v5_utf8.txt
-    # B-phase text understanding: MiniLM-L6 int8 line embeddings (offline).
-    # ~23 MB total. If APK size becomes an issue, move these to a
-    # first-launch download instead (see embedder.dart).
-    - assets/models/embeddings/minilm_quantized.onnx
-    - assets/models/embeddings/tokenizer.json
+    # Text understanding: char n-gram line classifier weights (offline,
+    # ~220 KB). Trained by tool/train_line_clf.py from tool/prototypes.json;
+    # inference is pure Dart (see lib/services/ngram_classifier.dart).
+    - assets/models/ngram/line_clf.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

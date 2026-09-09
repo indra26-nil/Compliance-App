@@ -6,10 +6,9 @@ plugins {
 
 android {
     namespace = "com.example.complience_app"
-    // onnxruntime's transitive androidx deps require compileSdk >= 34.
+    // Paddle OCR's transitive deps require compileSdk >= 34.
     compileSdk = 36
-    // Highest NDK required by plugins (camera, onnxruntime, etc.).
-    // They are backward compatible, so use the max.
+    // Highest NDK required by plugins (camera etc.); backward compatible.
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -42,14 +41,6 @@ android {
         }
     }
 
-    // flutter_paddle_ocr_v5 and onnxruntime both ship libonnxruntime.so
-    // (duplicate native lib). They are the same runtime — keep the first.
-    // Glob covers arm64-v8a + armeabi-v7a (merge runs before abiFilters).
-    packaging {
-        jniLibs {
-            pickFirsts += "**/libonnxruntime.so"
-        }
-    }
 }
 
 kotlin {

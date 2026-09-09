@@ -22,6 +22,8 @@
 /// keeping the plugin import out of this file for testability).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
@@ -126,25 +128,45 @@ Uint8List _cropEntry(_CropJob job) {
     final width = job.width.clamp(8, w - left);
     final height = job.height.clamp(8, h - top);
     var crop = img.copyCrop(decoded, x: left, y: top, width: width, height: height);
-    switch (job.variant) {
+    // Cap final pixels: a half-photo bottom-strip at 4x upscale becomes
+    // ~24MP and hangs/OOMs the native OCR (the "Extracting…" forever bug).
+    // Keep final output <= ~1.6MP by shrinking the upscale factor.
+    int upscaleFor(_Variant v) => v == _Variant.highContrast ? 4 : 3;
+    var upscale = upscaleFor(job.variant);
+    const maxOutPixels = 1600000;
+    while (upscale > 1 &&
+        crop.width * upscale * crop.height * upscale > maxOutPixels) {
+      upscale--;
+    }
+    // Large strips: high-contrast 4x buys nothing over plain — downgrade
+    // to plain to save one more heavy pass.
+    var variant = job.variant;
+    if ((job.variant == _Variant.highContrast) && upscale < 3) {
+      variant = _Variant.plain;
+    }
+    switch (variant) {
       case _Variant.plain:
-        crop = img.copyResize(crop,
-            width: crop.width * 3,
-            height: crop.height * 3,
-            interpolation: img.Interpolation.cubic);
+        if (upscale > 1) {
+          crop = img.copyResize(crop,
+              width: crop.width * upscale,
+              height: crop.height * upscale,
+              interpolation: img.Interpolation.cubic);
+        }
       case _Variant.contrast:
         crop = img.grayscale(crop);
         crop = img.adjustColor(crop, contrast: 1.8);
-        crop = img.copyResize(crop,
-            width: crop.width * 3,
-            height: crop.height * 3,
-            interpolation: img.Interpolation.cubic);
+        if (upscale > 1) {
+          crop = img.copyResize(crop,
+              width: crop.width * upscale,
+              height: crop.height * upscale,
+              interpolation: img.Interpolation.cubic);
+        }
       case _Variant.highContrast:
         crop = img.grayscale(crop);
         crop = img.adjustColor(crop, contrast: 2.6, brightness: 0.08);
         crop = img.copyResize(crop,
-            width: crop.width * 4,
-            height: crop.height * 4,
+            width: crop.width * upscale,
+            height: crop.height * upscale,
             interpolation: img.Interpolation.cubic);
     }
     return Uint8List.fromList(img.encodeJpg(crop, quality: 95));
@@ -285,8 +307,20 @@ Future<Map<String, FieldObservation>> rereadVariableFields({
       }
     }
   }
+  // Hard cap: without this, multi-photo + several UNVERIFIED fields fan out
+  // to dozens of sequential native OCRs with no progress UI ("stuck at
+  // Extracting…" for minutes). Small label-adjacent rects first; giant
+  // bottom-strips last so the cap drops the expensive jobs first.
+  jobs.sort((a, b) {
+    double area(NormalizedBox r) =>
+        (r.maxX - r.minX).abs() * (r.maxY - r.minY).abs();
+    return area(a.rect).compareTo(area(b.rect));
+  });
+  const maxJobs = 4;
+  final cappedJobs =
+      jobs.length > maxJobs ? jobs.sublist(0, maxJobs) : jobs;
 
-  for (final job in jobs) {
+  for (final job in cappedJobs) {
     final original = originals[job.photoIndex];
     final size = origSizes[job.photoIndex];
     if (original == null || original.isEmpty || size == null) continue;
@@ -295,14 +329,24 @@ Future<Map<String, FieldObservation>> rereadVariableFields({
     var bestConf = -1.0;
     FieldObservation? best;
     for (final variant in _Variant.values) {
-      final crop = await _prepareCrop(
-          original, job.rect, size.$1, size.$2, variant);
+      Uint8List crop;
+      try {
+        crop = await _prepareCrop(
+                original, job.rect, size.$1, size.$2, variant)
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        continue;
+      }
       if (crop.isEmpty) continue;
+      // Skip pathological crops (still huge even after capped upscale).
+      if (crop.lengthInBytes > 3500000) continue;
       List<OcrToken> tokens;
       try {
         tokens = await recognize(crop,
-            maxSideLen: 1200, photoIndex: job.photoIndex);
+                maxSideLen: 1200, photoIndex: job.photoIndex)
+            .timeout(const Duration(seconds: 15));
       } catch (_) {
+        // Timeout / native failure: skip variant, keep main-pass result.
         continue;
       }
       if (tokens.isEmpty) continue;
