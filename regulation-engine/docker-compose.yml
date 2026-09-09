@@ -1,9 +1,10 @@
 # One-command whole stack. Default: API (+ dashboard) against MongoDB Atlas
-# using ./env values. Optional pieces are opt-in via compose profiles.
+# using ./.env values. Optional pieces are opt-in via compose profiles.
 #
 #   docker compose up -d --build        # API on :5000 (Atlas DB from .env)
 #   docker compose --profile local up -d --build   # + local Mongo instead of Atlas
 #   docker compose --profile tunnel up -d          # + named Cloudflare tunnel
+#   docker compose --profile funnel up -d          # + stable public URL via Tailscale Funnel
 #   docker compose logs -f api
 #   docker compose down
 
@@ -48,5 +49,39 @@ services:
       - api
     restart: unless-stopped
 
+  # Optional: stable public URL via Tailscale Funnel, no domain needed.
+  # First: enable Funnel once at https://login.tailscale.com/admin/settings/keys
+  # (or the per-node prompt), and generate a REUSABLE auth key at
+  # https://login.tailscale.com/admin/settings/keys -> "Generate auth key".
+  # Put it in .env as TS_AUTHKEY, then:
+  #   docker compose --profile funnel up -d
+  #   docker compose exec tailscale tailscale funnel --set-path / http://127.0.0.1:5000
+  # The exec is needed ONCE — the serve config persists in tailscale-state, so
+  # every later boot is back to one command. Read your public URL with:
+  #   docker compose exec tailscale tailscale funnel status
+  # and set it as BASE_URL in .env (then `docker compose up -d` to apply).
+  tailscale:
+    image: tailscale/tailscale:latest
+    profiles: ["funnel"]
+    container_name: compliance-tailscale
+    hostname: compliance-server
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      # NOTE: empty key is fine unless you enable --profile funnel (then set a
+      # reusable key in .env or the node can't join your tailnet).
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    # Share the API's network namespace: funnel -> 127.0.0.1:5000 hits the api.
+    network_mode: "service:api"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   mongo-data:
+  tailscale-state:

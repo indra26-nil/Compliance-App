@@ -230,6 +230,11 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
+              'Requests will go to:\n$_baseUrl',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
               '$_unsynced scan(s) waiting on this device.',
               style: Theme.of(context).textTheme.bodySmall,
             ),

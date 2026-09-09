@@ -5,11 +5,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// Where the D/E/F server lives and who we are to it.
 ///
 /// Resolution order for the base URL:
-/// 1. `--dart-define=API_BASE_URL=https://your-api.onrender.com` (build-time,
-///    used for release/demo APKs),
-/// 2. officer override typed in Server Settings (stored securely on-device),
-/// 3. `http://10.0.2.2:5000` on Android emulator, else `http://localhost:5000`
-///    (handy for `flutter run` against a local `npm run dev`).
+/// 1. officer override typed in Server Settings (stored securely on-device) —
+///    what you type always wins, so a changed server address never needs a
+///    reinstall,
+/// 2. `--dart-define=API_BASE_URL=https://<host>` (build-time default for
+///    release/demo APKs),
+/// 3. `http://10.0.2.2:5000` (handy for `flutter run` against a local
+///    `npm run dev`).
 ///
 /// The auth token (JWT, 12h expiry) is kept in secure storage; photo paths
 /// and report JSON never leave the device except via [BackendApi.uploadScan].
@@ -35,11 +37,11 @@ class ServerConfig {
   );
 
   Future<String> baseUrl() async {
-    if (compileTimeBaseUrl.isNotEmpty) return _strip(compileTimeBaseUrl);
     final override = await _read(_baseUrlKey, (v) => _memBaseUrl = v, () => _memBaseUrl);
     if (override != null && override.trim().isNotEmpty) {
       return _strip(override.trim());
     }
+    if (compileTimeBaseUrl.isNotEmpty) return _strip(compileTimeBaseUrl);
     return 'http://10.0.2.2:5000';
   }
 

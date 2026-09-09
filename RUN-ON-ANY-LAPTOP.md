@@ -10,13 +10,19 @@ They connect over plain HTTPS — the laptop and the phones just need internet.
 
 ## A. Server — Docker only, no Node/Mongo needed
 
-1. Install **Docker** (Docker Desktop, or `docker` + `docker compose` plugin) and
-   `git`, then:
+1. Install **Docker** and `git`, then:
+   - **Ubuntu laptop:** Docker isn't preinstalled — run:
+     ```bash
+     sudo apt update && sudo apt install -y docker.io docker-compose-plugin git
+     sudo systemctl enable --now docker
+     sudo usermod -aG docker $USER   # log out + back in, so `docker` needs no sudo
+     ```
+   - **Arch:** `sudo pacman -S docker docker-compose git` (+ enable as above).
    ```bash
    git clone <your-repo-url> Compliance-App
    cd Compliance-App/regulation-engine
    ```
-2. Recreate `.env` (it never travels with git — copy these 3 lines from your
+2. Recreate `.env` (it never travels with git — copy these lines from your
    old machine or password manager):
    ```bash
    cp .env.example .env
@@ -24,6 +30,8 @@ They connect over plain HTTPS — the laptop and the phones just need internet.
    then edit `.env`: paste `MONGO_URI=` (Atlas string), keep the same
    `JWT_SECRET=` so existing logins keep working, set `BASE_URL=` to whatever
    public address you will use below (or leave empty for laptop-only testing).
+   For the Tailscale option also paste `TS_AUTHKEY=` (reusable key from
+   https://login.tailscale.com/admin/settings/keys → Generate auth key).
 3. Start it:
    ```bash
    docker compose up -d --build
@@ -32,7 +40,16 @@ They connect over plain HTTPS — the laptop and the phones just need internet.
    First time on a **fresh** database only: `docker compose exec api npm run seed`
    (creates the rule catalog + `officer@gov.in` / `admin@gov.in`).
 4. Make it public (pick one):
-   - **Stable:** named Cloudflare tunnel — `cloudflared tunnel login`,
+   - **Stable, no domain (recommended):** Tailscale Funnel, fully containerized:
+     ```bash
+     docker compose --profile funnel up -d
+     docker compose exec tailscale tailscale funnel --set-path / http://127.0.0.1:5000   # once only
+     docker compose exec tailscale tailscale funnel status   # prints your https://...ts.net URL
+     ```
+     The serve config persists in the container volume, so every later boot is
+     just `docker compose --profile funnel up -d`. Funnel must be enabled once
+     on the tailnet (login.tailscale.com → approve).
+   - **Stable, with domain:** named Cloudflare tunnel — `cloudflared tunnel login`,
      `cloudflared tunnel create compliance-laptop`,
      `cloudflared tunnel route dns compliance-laptop api.yourdomain.com`,
      then `cloudflared tunnel run compliance-laptop`
