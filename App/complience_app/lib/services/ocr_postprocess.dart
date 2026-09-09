@@ -226,11 +226,16 @@ class OcrPostprocess {
     return _sortReadingOrder(kept);
   }
 
+  /// Cleans one OCR line for the review screen ("Auto-clean" action):
+  /// same token cleaner + line fixer the display text uses, so what the
+  /// officer approves is what extraction will see.
+  static String cleanLine(String line, {bool useLexicon = true}) =>
+      _fixLine(cleanToken(line), useLexicon: useLexicon);
+
   /// Builds the final multi-line text from already sorted regions.
   /// Set [useLexicon] to false to skip food-vocabulary spell correction.
   static String buildCleanText(List<OcrResult> sortedKept,
-      {bool useLexicon = true}) {
-    if (sortedKept.isEmpty) return '';
+      {bool useLexicon = true}) {    if (sortedKept.isEmpty) return '';
     final lines = _groupLines(sortedKept);
     final out = <String>[];
     for (final line in lines) {

@@ -6,9 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.complience_app"
-    compileSdk = flutter.compileSdkVersion
-    // Pinned for flutter_paddle_ocr_v5 (ONNX Runtime + OpenCV native build).
-    ndkVersion = "27.3.13750724"
+    // onnxruntime's transitive androidx deps require compileSdk >= 34.
+    compileSdk = 36
+    // Highest NDK required by plugins (camera, onnxruntime, etc.).
+    // They are backward compatible, so use the max.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -25,10 +27,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Plugin only packages arm64-v8a native libs (ONNX Runtime + OpenCV).
-        ndk {
-            abiFilters += "arm64-v8a"
-        }
+        // NOTE: do NOT add ndk.abiFilters here — the Flutter Gradle plugin
+        // manages ABIs itself and fails the build when splits are enabled
+        // ("conflicting configuration"). For small install size use:
+        //   flutter build apk --release --split-per-abi   (one APK per ABI)
+        //   flutter build appbundle --release             (Play Store)
     }
 
     buildTypes {
@@ -36,6 +39,15 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    // flutter_paddle_ocr_v5 and onnxruntime both ship libonnxruntime.so
+    // (duplicate native lib). They are the same runtime — keep the first.
+    // Glob covers arm64-v8a + armeabi-v7a (merge runs before abiFilters).
+    packaging {
+        jniLibs {
+            pickFirsts += "**/libonnxruntime.so"
         }
     }
 }

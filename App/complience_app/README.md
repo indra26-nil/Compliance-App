@@ -1,17 +1,30 @@
-# complience_app
+# complience_app — offline Legal Metrology compliance checker
 
-A new Flutter project.
+Flutter app (Android-first, fully offline). Officer photographs a product's
+label panels → on-device OCR → declaration extraction → LM-PCR 2011 rule
+check → per-product report card, saved locally, exportable to CSV/Excel.
 
-## Getting Started
+> **Full documentation (architecture, rules, storage, backend contract,
+> roadmap): see [`../../README.md`](../../README.md).**
 
-This project is a starting point for a Flutter application.
+## Quick start
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+flutter run                    # Android device, arm64, API 24+
+flutter build apk --release    # field demo APK
+flutter analyze
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Offline OCR (PP-OCRv5 ONNX) runs on Android/iOS only; desktop/web show an
+explanatory message instead of crashing.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Key files
+
+- `lib/home_page.dart` — scanner setup (product name, category, 1..N photos)
+- `lib/screens/compliance_report_screen.dart` — the report card ★
+- `lib/services/declaration_extractor.dart` — (B) OCR text → declarations
+- `lib/services/rule_engine.dart` — (C) LM-PCR 2011 rule catalog
+- `lib/services/scan_pipeline.dart` — multi-photo orchestration
+- `lib/services/backend_api.dart` + `docs/backend_api_contract.md` — server spec (D/E/F, not built)
+open

@@ -1,6 +1,6 @@
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 /// Pre-processing tuned for packaged-food label photos (nutrition tables,
@@ -17,6 +17,11 @@ import 'package:image/image.dart' as img;
 ///
 /// Returns bytes ready for [PaddleOcr.recognize]. Falls back to the input on
 /// any failure so OCR can still proceed.
+///
+/// NOTE: this runs the CPU-heavy decode/resize/encode on the calling isolate.
+/// For calls from the UI thread prefer [prepareLabelImageBytesBackground],
+/// which runs the same work via `compute` so the route transition + loading
+/// screen can paint instead of freezing.
 Future<Uint8List> prepareLabelImageBytes(
   Uint8List raw, {
   int largeSideCap = 3200,
@@ -24,6 +29,97 @@ Future<Uint8List> prepareLabelImageBytes(
   int upscaleBelow = 2400,
   int maxPixels = 12000000,
 }) async {
+  try {
+    return _prepareSync(
+      raw,
+      largeSideCap: largeSideCap,
+      upscaleFactor: upscaleFactor,
+      upscaleBelow: upscaleBelow,
+      maxPixels: maxPixels,
+    );
+  } catch (_) {
+    return raw;
+  }
+}
+
+/// Same as [prepareLabelImageBytes] but runs the heavy pixel work on a
+/// background isolate. Falls back to the input bytes on any failure so OCR
+/// can still proceed.
+Future<Uint8List> prepareLabelImageBytesBackground(
+  Uint8List raw, {
+  int largeSideCap = 3200,
+  double upscaleFactor = 2.0,
+  int upscaleBelow = 2400,
+  int maxPixels = 12000000,
+}) async {
+  try {
+    return await compute(
+      _preprocessEntry,
+      _PreprocessArgs(
+        raw: raw,
+        largeSideCap: largeSideCap,
+        upscaleFactor: upscaleFactor,
+        upscaleBelow: upscaleBelow,
+        maxPixels: maxPixels,
+      ),
+    );
+  } catch (_) {
+    // compute can fail on very low-memory devices — fall back to inline
+    // (may jank one frame) rather than failing the whole scan.
+    try {
+      return _prepareSync(
+        raw,
+        largeSideCap: largeSideCap,
+        upscaleFactor: upscaleFactor,
+        upscaleBelow: upscaleBelow,
+        maxPixels: maxPixels,
+      );
+    } catch (_) {
+      return raw;
+    }
+  }
+}
+
+/// Args holder for the `compute` entrypoint (compute takes a single arg).
+@immutable
+class _PreprocessArgs {
+  const _PreprocessArgs({
+    required this.raw,
+    required this.largeSideCap,
+    required this.upscaleFactor,
+    required this.upscaleBelow,
+    required this.maxPixels,
+  });
+
+  final Uint8List raw;
+  final int largeSideCap;
+  final double upscaleFactor;
+  final int upscaleBelow;
+  final int maxPixels;
+}
+
+/// Top-level entry for `compute` — must stay top-level (no closures).
+Uint8List _preprocessEntry(_PreprocessArgs args) {  try {
+    return _prepareSync(
+      args.raw,
+      largeSideCap: args.largeSideCap,
+      upscaleFactor: args.upscaleFactor,
+      upscaleBelow: args.upscaleBelow,
+      maxPixels: args.maxPixels,
+    );
+  } catch (_) {
+    return args.raw;
+  }
+}
+
+/// Synchronous core: decode → EXIF fix → resize → high-quality re-encode.
+Uint8List _prepareSync(
+  Uint8List raw, {
+  required int largeSideCap,
+  required double upscaleFactor,
+  required int upscaleBelow,
+  required int maxPixels,
+}) {
   try {
     final decoded = img.decodeImage(raw);
     if (decoded == null) return raw;
@@ -75,5 +171,29 @@ Future<Uint8List> prepareLabelImageBytes(
     return Uint8List.fromList(encoded);
   } catch (_) {
     return raw;
+  }
+}
+
+/// Image dimensions without full processing (background isolate).
+///
+/// Used to map normalized label boxes back to pixel crops for the
+/// variable-print re-read pass, and to normalize OCR token geometry.
+/// Returns (0, 0) on failure — callers treat that as "geometry unknown".
+Future<(int, int)> imageBounds(Uint8List bytes) async {
+  try {
+    return await compute(_boundsEntry, bytes);
+  } catch (_) {
+    return (0, 0);
+  }
+}
+
+/// Top-level entry for `compute` — must stay top-level (no closures).
+(int, int) _boundsEntry(Uint8List bytes) {
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return (0, 0);
+    return (decoded.width, decoded.height);
+  } catch (_) {
+    return (0, 0);
   }
 }

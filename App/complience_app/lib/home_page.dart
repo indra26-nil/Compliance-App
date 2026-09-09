@@ -5,16 +5,20 @@ import 'package:image_picker/image_picker.dart';
 
 import 'screens/history_screen.dart';
 import 'screens/processing_screen.dart';
+import 'services/embedder.dart';
 import 'services/ocr_service.dart';
+import 'services/rule_engine.dart';
+import 'services/scan_pipeline.dart';
 
-/// Home page of the app.
+/// Home page: multi-photo product scan setup (offline-first).
 ///
-/// Presents the user with two options:
-///   1. Capture a photo using the device camera.
-///   2. Upload a photo from the device gallery.
+/// One product = 1..N label photos (front + back + sides + MRP close-up).
+/// The extractor merges declarations across photos (best-confidence-wins),
+/// so more angles = fewer false "missing" violations.
 ///
-/// Once a photo is selected, a preview is shown with actions to
-/// retake/replace the photo or confirm it for the next step.
+/// Flow: enter product name + category -> add photos -> "Scan" ->
+/// [ProcessingScreen] (staged loader) -> report card (auto-saved to
+/// `product_scans`, viewable in [HistoryScreen]).
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -24,8 +28,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ImagePicker _picker = ImagePicker();
-  XFile? _selectedImage;
+  final TextEditingController _nameController = TextEditingController();
+  final List<XFile> _photos = [];
+  ProductCategory _category = ProductCategory.general;
   bool _isPicking = false;
+  bool _isConfirming = false;
 
   @override
   void initState() {
@@ -33,47 +40,98 @@ class _HomePageState extends State<HomePage> {
     // Start copying models + loading the native engine early so the first
     // scan doesn't pay the full ~1-2s init cost.
     OcrService.instance.warmUp().ignore();
+    // Option-B text understanding warms in the background (best-effort):
+    // prototype embeddings are cached so the first scan pays no extra cost.
+    // Falls back to regex-only extraction when unavailable.
+    MiniLMEmbedder.instance.warmUp().ignore();
+    ScanPipeline.warmUpClassifier().ignore();
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickGallery() async {
     if (_isPicking) return;
     setState(() => _isPicking = true);
-
     try {
-      // High quality + capped resolution: nutrition / ingredient print needs
-      // crisp glyphs. quality 85 added JPEG ringing the recogniser read as `'`.
-      final XFile? image = await _picker.pickImage(
-        source: source,
+      // Multi-select: front + back + sides in one go.
+      final images = await _picker.pickMultiImage(
         maxWidth: 3000,
         maxHeight: 3000,
         imageQuality: 95,
       );
-      if (image != null) {
-        setState(() => _selectedImage = image);
+      if (images.isNotEmpty && mounted) {
+        setState(() => _photos.addAll(images));
       }
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not get photo: $error'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      _snack('Could not get photos: $error', isError: true);
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
   }
 
-  Future<void> _confirmPhoto() async {
-    final image = _selectedImage;
-    if (image == null) return;
+  Future<void> _pickCamera() async {
+    if (_isPicking) return;
+    setState(() => _isPicking = true);
+    try {
+      final image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 3000,
+        maxHeight: 3000,
+        imageQuality: 95,
+      );
+      if (image != null && mounted) {
+        setState(() => _photos.add(image));
+      }
+    } catch (error) {
+      _snack('Could not capture photo: $error', isError: true);
+    } finally {
+      if (mounted) setState(() => _isPicking = false);
+    }
+  }
+
+  void _snack(String msg, {bool isError = false}) {
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProcessingScreen(imagePath: image.path),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor:
+            isError ? Theme.of(context).colorScheme.error : null,
       ),
     );
+  }
+
+  Future<void> _startScan() async {
+    if (_photos.isEmpty || _isConfirming) return;
+    if (!mounted) return;
+    // Push immediately — no heavy work here, so no freeze. All OCR work is
+    // deferred until ProcessingScreen has painted (see its _scheduleRun).
+    setState(() => _isConfirming = true);
+    try {
+      final saved = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProcessingScreen(
+            imagePaths: _photos.map((e) => e.path).toList(),
+            productName: _nameController.text,
+            category: _category,
+          ),
+        ),
+      );
+      // Report screen pops `true` when a scan was saved -> reset for the
+      // next product. System-back (null) keeps the setup intact.
+      if (saved == true && mounted) {
+        setState(() {
+          _photos.clear();
+          _nameController.clear();
+        });
+        _snack('Scan saved — ready for the next product.');
+      }
+    } finally {
+      if (mounted) setState(() => _isConfirming = false);
+    }
   }
 
   @override
@@ -87,7 +145,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: colorScheme.inversePrimary,
         actions: [
           IconButton(
-            tooltip: 'Scan history',
+            tooltip: 'Saved products & export',
             icon: const Icon(Icons.history),
             onPressed: () {
               Navigator.of(context).push(
@@ -98,130 +156,189 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: SafeArea(
-        child: _selectedImage == null
-            ? _buildOptionsView(context)
-            : _buildPreviewView(context),
-      ),
-    );
-  }
-
-  /// Shown when no photo has been selected yet: the two main options.
-  Widget _buildOptionsView(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
           children: [
-            Icon(
-              Icons.document_scanner_outlined,
-              size: 80,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Get Started',
-              textAlign: TextAlign.center,
-              style: textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+            TextField(
+              controller: _nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Product name (e.g. Potato Chips 73g)',
+                prefixIcon: Icon(Icons.inventory_2_outlined),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Capture a new photo or upload one from your gallery\nto begin the compliance check.',
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            DropdownButtonFormField<ProductCategory>(
+              value: _category,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Category',
+                prefixIcon: Icon(Icons.category_outlined),
               ),
-            ),
-            const SizedBox(height: 32),
-            _OptionCard(
-              icon: Icons.photo_camera_outlined,
-              title: 'Capture Photo',
-              subtitle: 'Use your camera to take a new photo',
-              iconColor: colorScheme.primary,
-              onTap: _isPicking ? null : () => _pickImage(ImageSource.camera),
+              items: const [
+                DropdownMenuItem(
+                  value: ProductCategory.general,
+                  child: Text('General'),
+                ),
+                DropdownMenuItem(
+                  value: ProductCategory.food,
+                  child: Text('Food (adds FSSAI check)'),
+                ),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _category = v);
+              },
             ),
             const SizedBox(height: 16),
-            _OptionCard(
-              icon: Icons.photo_library_outlined,
-              title: 'Upload Photo',
-              subtitle: 'Choose an existing photo from your gallery',
-              iconColor: colorScheme.secondary,
-              onTap:
-                  _isPicking ? null : () => _pickImage(ImageSource.gallery),
-            ),
-            if (_isPicking) ...[
-              const SizedBox(height: 24),
-              const Center(child: CircularProgressIndicator()),
+            if (_photos.isEmpty) ...[
+              _OptionCard(
+                icon: Icons.photo_camera_outlined,
+                title: 'Capture Photos',
+                subtitle: 'Take label photos one by one (front, back, MRP)',
+                iconColor: colorScheme.primary,
+                onTap: _isPicking ? null : _pickCamera,
+              ),
+              const SizedBox(height: 12),
+              _OptionCard(
+                icon: Icons.photo_library_outlined,
+                title: 'Upload Photos',
+                subtitle: 'Select one or more existing photos',
+                iconColor: colorScheme.secondary,
+                onTap: _isPicking ? null : _pickGallery,
+              ),
+              if (_isPicking) ...[
+                const SizedBox(height: 20),
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ] else ...[
+              Row(
+                children: [
+                  Text(
+                    '${_photos.length} photo${_photos.length == 1 ? '' : 's'} added',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _isPicking ? null : _pickCamera,
+                    icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                    label: const Text('Add'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _isPicking ? null : _pickGallery,
+                    icon: const Icon(Icons.add_photo_alternate_outlined,
+                        size: 18),
+                    label: const Text('Gallery'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: _photos.length,
+                itemBuilder: (context, i) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(
+                        File(_photos[i].path),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color:
+                              colorScheme.surfaceContainerHighest,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${i + 1}',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: InkWell(
+                        onTap: () =>
+                            setState(() => _photos.removeAt(i)),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close,
+                              color: Colors.white, size: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tip: include the principal panel, MRP close-up, dates and '
+                'consumer-care block. Anything found on ANY photo counts.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: (_isConfirming || _isPicking) ? null : _startScan,
+                icon: _isConfirming
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child:
+                            CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.document_scanner_outlined),
+                label: Text(_isConfirming
+                    ? 'Opening…'
+                    : 'Scan ${_photos.length} photo${_photos.length == 1 ? '' : 's'}'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: (_isPicking || _isConfirming)
+                    ? null
+                    : () => setState(_photos.clear),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Clear photos'),
+              ),
             ],
           ],
         ),
       ),
     );
   }
-
-  /// Shown after a photo has been selected: full preview + actions.
-  Widget _buildPreviewView(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.file(
-                File(_selectedImage!.path),
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: colorScheme.surfaceContainerHighest,
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.image_outlined,
-                          size: 64,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Photo selected:\n${_selectedImage!.name}',
-                            textAlign: TextAlign.center),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _confirmPhoto,
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Use This Photo'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed:
-                _isPicking ? null : () => _pickImage(ImageSource.gallery),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Choose Another Photo'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-/// A tappable card representing one of the two homepage options.
+/// A tappable card representing one of the two photo-source options.
 class _OptionCard extends StatelessWidget {
   const _OptionCard({
     required this.icon,

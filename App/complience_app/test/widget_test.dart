@@ -12,7 +12,7 @@ void main() {
     );
 
     // Both main options should be visible.
-    expect(find.text('Capture Photo'), findsOneWidget);
-    expect(find.text('Upload Photo'), findsOneWidget);
+    expect(find.text('Capture Photos'), findsOneWidget);
+    expect(find.text('Upload Photos'), findsOneWidget);
   });
 }
