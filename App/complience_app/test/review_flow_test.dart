@@ -72,7 +72,8 @@ void main() {
         category: ProductCategory.general,
         mode: ExtractionMode.assisted,
       );
-      expect(assisted.modeNote, contains('Smart-assist votes'));
+      expect(assisted.modeNote, contains('Smart-assist'));
+      expect(assisted.modeNote, contains('votes fused'));
       // Garbled MRP label rescued by votes (regex-only misses it).
       expect(assisted.product.mrp.status, FieldStatus.found);
 

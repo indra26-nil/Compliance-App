@@ -55,6 +55,7 @@ import 'ocr_service.dart';
 import 'ocr_store.dart';
 import 'ocr_tokens.dart';
 import 'rule_engine.dart';
+import 'tiny_classifier.dart';
 import 'variable_print.dart';
 
 /// Coarse stage for the processing-screen step indicator.
@@ -172,6 +173,14 @@ class PendingScan {
 class ScanPipeline {
   const ScanPipeline();
 
+  /// Shared smart-assist classifiers, best first.
+  ///
+  /// * [_tiny] — Tier-1 transformer (bert-tiny int8 ONNX, real context).
+  /// * [_classifier] — keyword fallback (pure Dart n-gram, microseconds).
+  /// The pipeline tries [_tiny], then [_classifier], then regex-only, so a
+  /// missing/slow transformer never blocks extraction.
+  static final TinyClassifier _tiny = TinyClassifier();
+
   /// Shared smart-assist classifier (weights parsed once at warm-up, then
   /// microseconds per line — pure Dart, no model download).
   static final NgramClassifier _classifier = NgramClassifier();
@@ -179,7 +188,7 @@ class ScanPipeline {
   /// Best-effort background warm-up (call from app start; safe to ignore).
   static Future<void> warmUpClassifier() async {
     try {
-      await _classifier.warmUp();
+      await Future.wait([_tiny.warmUp(), _classifier.warmUp()]);
     } catch (_) {
       // Fallback: extraction runs regex-only.
     }
@@ -187,13 +196,20 @@ class ScanPipeline {
 
   /// True when smart-assist votes are actually available on this device.
   /// The OCR-review screen uses this to mark modes available vs fallback.
-  static bool get isClassifierReady => _classifier.isReady;
+  static bool get isClassifierReady => _tiny.isReady || _classifier.isReady;
+
+  /// Which engine backs smart-assist votes: transformer, keyword, or none.
+  static String classifierEngine() {
+    if (_tiny.isReady) return 'transformer';
+    if (_classifier.isReady) return 'keyword';
+    return 'none';
+  }
 
   /// Reloads the text-model weights
   /// (plain [warmUpClassifier] never retries a completed failure).
   static Future<void> retryClassifier() async {
     try {
-      await _classifier.retry();
+      await Future.wait([_tiny.retry(), _classifier.retry()]);
     } catch (_) {
       // Status strings below carry the reason.
     }
@@ -201,8 +217,9 @@ class ScanPipeline {
 
   /// Officer-facing assist-model status for the OCR-review screen.
   static String classifierStatus() {
-    if (isClassifierReady) return 'ready';
-    final modelErr = _classifier.lastError;
+    if (_tiny.isReady) return 'ready (transformer)';
+    if (_classifier.isReady) return 'ready (keyword model)';
+    final modelErr = _tiny.lastError ?? _classifier.lastError;
     if (modelErr != null) return 'model load failed: $modelErr';
     return 'still loading — open this screen again in a few seconds '
         'if it persists, use Retry.';
@@ -373,7 +390,9 @@ class ScanPipeline {
         product = extractProduct(layouts, lineLabels: lineLabels);
         modeNote = lineLabels == null
             ? 'Smart assist unavailable on this device — fell back to regex-only.'
-            : 'Smart-assist votes fused with regex validators.';
+            : (classifierEngine() == 'transformer'
+                ? 'Smart-assist (on-device transformer) votes fused with regex validators.'
+                : 'Smart-assist (keyword model) votes fused with regex validators.');
       case ExtractionMode.ensemble:
         final lineLabels = await _classifyAllLines(layouts);
         if (lineLabels == null) {
@@ -387,8 +406,9 @@ class ScanPipeline {
             extractProduct(layouts),
             extractProduct(layouts, lineLabels: lineLabels),
           ]);
-          modeNote =
-              'Ensemble: best-per-field of regex-only ∪ smart-assist runs.';
+          modeNote = classifierEngine() == 'transformer'
+              ? 'Ensemble: best-per-field of regex-only ∪ transformer-assist runs.'
+              : 'Ensemble: best-per-field of regex-only ∪ smart-assist runs.';
         }
     }
 
@@ -577,14 +597,19 @@ class ScanPipeline {
   static Future<LineLabelMap?> _classifyAllLinesInner(
       List<PageLayout> layouts) async {
     try {
-      await _classifier.warmUp();
-      if (!_classifier.isReady) return null;
+      // Tier-1 transformer first, keyword model as fallback — whichever is
+      // ready votes; neither ready means regex-only (caller handles null).
+      await Future.wait([_tiny.warmUp(), _classifier.warmUp()]);
+      final useTiny = _tiny.isReady;
+      if (!useTiny && !_classifier.isReady) return null;
       final allLines = <LayoutLine>[
         for (final layout in layouts) ...layout.lines,
       ];
       if (allLines.isEmpty) return null;
-      final votes = await _classifier
-          .classify([for (final l in allLines) l.text]);
+      final votes = useTiny
+          ? await _tiny.classify([for (final l in allLines) l.text])
+          : await _classifier
+              .classify([for (final l in allLines) l.text]);
       if (votes.length != allLines.length) return null;
       return {for (var i = 0; i < allLines.length; i++) allLines[i]: votes[i]};
     } catch (_) {

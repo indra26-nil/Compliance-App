@@ -1,0 +1,33 @@
+{
+ "format": 1,
+ "generated": "2026-09-09T11:21:46+00:00",
+ "base": "prajjwal1/bert-tiny",
+ "classes": [
+  "allergen",
+  "barcode",
+  "batch",
+  "brand",
+  "care",
+  "exp_date",
+  "fssai",
+  "ingredients",
+  "manufacturer",
+  "mfg_date",
+  "mrp",
+  "net_qty",
+  "nutrition",
+  "origin",
+  "other",
+  "product_name",
+  "slogan_other"
+ ],
+ "max_len": 48,
+ "quant": "int8-dynamic",
+ "report": {
+  "real": 1.0,
+  "para": 0.7059,
+  "synth": 0.9907,
+  "val_acc": 0.9931,
+  "int8_agreement": 1.0
+ }
+}

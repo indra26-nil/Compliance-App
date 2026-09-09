@@ -42,6 +42,7 @@ dependencies:
   sqflite: ^2.4.0
   image: ^4.5.4
   share_plus: ^13.3.0
+  flutter_onnxruntime: ^1.8.5
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,12 @@ flutter:
     # ~220 KB). Trained by tool/train_line_clf.py from tool/prototypes.json;
     # inference is pure Dart (see lib/services/ngram_classifier.dart).
     - assets/models/ngram/line_clf.json
+    # Tier-1 transformer line classifier (bert-tiny int8 ONNX, ~5 MB).
+    # Trained by tool/train_tiny_clf.py; run via flutter_onnxruntime
+    # (see lib/services/tiny_classifier.dart). Ngram stays as fallback.
+    - assets/models/tiny/line_tiny_int8.onnx
+    - assets/models/tiny/vocab.txt
+    - assets/models/tiny/meta.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

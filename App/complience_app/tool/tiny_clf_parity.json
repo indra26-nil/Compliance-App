@@ -1,0 +1,187 @@
+[
+ {
+  "text": "Lay's",
+  "field": "brand",
+  "prob": 0.854555
+ },
+ {
+  "text": "Potato Chips",
+  "field": "product_name",
+  "prob": 0.85687
+ },
+ {
+  "text": "NETUT 80g",
+  "field": "net_qty",
+  "prob": 0.883806
+ },
+ {
+  "text": "MPP Rs 42.00",
+  "field": "mrp",
+  "prob": 0.880026
+ },
+ {
+  "text": "(inclusive of all taxes)",
+  "field": "mrp",
+  "prob": 0.49423
+ },
+ {
+  "text": "Mfd. by PepsiCo India Holdings Pvt. Ltd.,",
+  "field": "manufacturer",
+  "prob": 0.871873
+ },
+ {
+  "text": "SCO 29-30, Sector 17, Chandigarh 160017",
+  "field": "manufacturer",
+  "prob": 0.576146
+ },
+ {
+  "text": "C022- 67740100 AND",
+  "field": "care",
+  "prob": 0.855651
+ },
+ {
+  "text": "CONSUMER.FEEDBACK@PEPSICO.COM",
+  "field": "care",
+  "prob": 0.842709
+ },
+ {
+  "text": "FSSL No. 10012083000110",
+  "field": "fssai",
+  "prob": 0.75249
+ },
+ {
+  "text": "8 901234 567890",
+  "field": "barcode",
+  "prob": 0.704712
+ },
+ {
+  "text": "Lay's is a Trade Mark of PepsiCo, Inc.",
+  "field": "other",
+  "prob": 0.539995
+ },
+ {
+  "text": "",
+  "field": "brand",
+  "prob": 0.852727
+ },
+ {
+  "text": "   ",
+  "field": "brand",
+  "prob": 0.852727
+ },
+ {
+  "text": "!!!",
+  "field": "slogan_other",
+  "prob": 0.705876
+ },
+ {
+  "text": "MRP",
+  "field": "mrp",
+  "prob": 0.869163
+ },
+ {
+  "text": "Rs. 1,299",
+  "field": "mrp",
+  "prob": 0.870207
+ },
+ {
+  "text": "MRP ₹ 99 (inclusive of all taxes)",
+  "field": "mrp",
+  "prob": 0.87944
+ },
+ {
+  "text": "NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g NET QTY: 80g ",
+  "field": "net_qty",
+  "prob": 0.869914
+ },
+ {
+  "text": "mfd by pepsico india",
+  "field": "origin",
+  "prob": 0.658322
+ },
+ {
+  "text": "Coca-Cola",
+  "field": "product_name",
+  "prob": 0.613648
+ },
+ {
+  "text": "Mango Pickle",
+  "field": "brand",
+  "prob": 0.508335
+ },
+ {
+  "text": "Tastes great every day!",
+  "field": "slogan_other",
+  "prob": 0.719618
+ },
+ {
+  "text": "INGREDIENTS: Rice Flour, Salt, Palm Oil",
+  "field": "ingredients",
+  "prob": 0.732258
+ },
+ {
+  "text": "Contains Peanuts",
+  "field": "allergen",
+  "prob": 0.563214
+ },
+ {
+  "text": "Protein 5g per 100g serving",
+  "field": "nutrition",
+  "prob": 0.814182
+ },
+ {
+  "text": "Net Quantity 250 g",
+  "field": "net_qty",
+  "prob": 0.825969
+ },
+ {
+  "text": "Price Rs 75 only",
+  "field": "mrp",
+  "prob": 0.848641
+ },
+ {
+  "text": "Lot Number B2210",
+  "field": "batch",
+  "prob": 0.820627
+ },
+ {
+  "text": "Packed in June 2025",
+  "field": "mfg_date",
+  "prob": 0.694997
+ },
+ {
+  "text": "Expires December 2026",
+  "field": "exp_date",
+  "prob": 0.821114
+ },
+ {
+  "text": "Made by ITC Limited, Kolkata",
+  "field": "origin",
+  "prob": 0.601981
+ },
+ {
+  "text": "Helpline 1800 3000 1234",
+  "field": "exp_date",
+  "prob": 0.403997
+ },
+ {
+  "text": "FSSAI 10019099001122",
+  "field": "fssai",
+  "prob": 0.703173
+ },
+ {
+  "text": "Manufactured in Sri Lanka",
+  "field": "origin",
+  "prob": 0.682267
+ },
+ {
+  "text": "6 789012 345678",
+  "field": "barcode",
+  "prob": 0.682824
+ },
+ {
+  "text": "Best stored away from sunlight",
+  "field": "product_name",
+  "prob": 0.343311
+ }
+]
