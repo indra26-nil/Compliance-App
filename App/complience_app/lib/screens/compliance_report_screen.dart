@@ -139,9 +139,15 @@ class _ComplianceReportScreenState extends State<ComplianceReportScreen> {
       var serverId = _record.serverId;
       if (serverId == null || serverId.isEmpty) {
         // Try a sync pass first (officer may have just signed in).
+        // Sync failures (offline / expired session) must NOT look like a
+        // PDF failure — they just leave the row unsynced for the message
+        // below.
         setState(() => _syncBusy = true);
         try {
           await SyncService.instance.syncNow();
+        } catch (_) {
+          // Falls through to the "Not on the server yet" hint below — the
+          // real reason stays visible via Server & sync screen.
         } finally {
           if (mounted) setState(() => _syncBusy = false);
         }

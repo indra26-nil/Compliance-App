@@ -101,8 +101,8 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
         _userLabel = user is Map ? '${user['name']} · ${user['role']}' : 'Signed in';
         _status = 'Signed in — queued scans will now upload.';
       });
-      _syncNow();
-      _load();
+      await _syncNow();
+      await _load();
     } catch (e) {
       if (!mounted) return;
       setState(() => _status = 'Sign-in failed: $e');
@@ -122,6 +122,7 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
   }
 
   Future<void> _syncNow() async {
+    if (_syncing) return;
     setState(() {
       _syncing = true;
       _status = null;
@@ -129,15 +130,54 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
     try {
       final (uploaded, remaining) = await SyncService.instance.syncNow();
       if (!mounted) return;
+      // A concurrent background enqueue returns (0, 0) — don't claim
+      // "already synced" when a pass is still running elsewhere.
+      final err = SyncService.instance.lastError;
+      final needsLogin = SyncService.instance.lastErrorIsAuth;
+      final remainingNow =
+          await OcrStore.instance.countUnsyncedScans().catchError((_) => remaining);
       setState(() {
-        _unsynced = remaining;
-        _status = uploaded == 0 && remaining == 0
-            ? 'Everything is already synced.'
-            : 'Uploaded $uploaded scan(s). $remaining still queued.';
+        _unsynced = remainingNow;
+        if (needsLogin) {
+          _signedIn = false;
+          _userLabel = null;
+        }
+        if (uploaded == 0 && remainingNow == 0) {
+          _status = 'Everything is already synced.';
+        } else if (uploaded > 0 && remainingNow == 0) {
+          _status = 'Uploaded $uploaded scan(s). All synced.';
+        } else if (uploaded > 0) {
+          _status = 'Uploaded $uploaded scan(s). $remainingNow still queued.'
+              '${err != null ? '\nNote: $err' : ''}';
+        } else {
+          _status = remainingNow > 0
+              ? 'Nothing uploaded. $remainingNow still queued.'
+                  '${err != null ? '\n$err' : ''}'
+              : 'Sync finished.';
+        }
+      });
+    } on BackendException catch (e) {
+      // Auth expiry aborts the batch — flip UI to signed-out immediately.
+      if (!mounted) return;
+      final remainingNow =
+          await OcrStore.instance.countUnsyncedScans().catchError((_) => _unsynced);
+      setState(() {
+        _unsynced = remainingNow;
+        if (e.statusCode == 401) {
+          _signedIn = false;
+          _userLabel = null;
+          _status = 'Session expired — please sign in again. '
+              '$remainingNow scan(s) stay queued on this device.';
+        } else {
+          _status = 'Sync failed: ${e.message} '
+              '($remainingNow still queued).';
+        }
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _status = 'Sync failed: $e');
+      final err = SyncService.instance.lastError;
+      setState(() => _status =
+          'Sync failed: ${err ?? e} ($_unsynced still queued).');
     } finally {
       if (mounted) setState(() => _syncing = false);
     }

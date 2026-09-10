@@ -126,8 +126,10 @@ class BackendApi {
     for (final p in imagePaths) {
       req.files.add(await http.MultipartFile.fromPath('photos', p));
     }
-    final streamed =
-        await req.send().timeout(const Duration(seconds: 90));
+    // Text-only uploads (no photos) finish in seconds — a short timeout
+    // keeps SyncService batches from hanging per row when the server is
+    // unreachable (the old 90s × 50 rows looked like an infinite loop).
+    final streamed = await req.send().timeout(const Duration(seconds: 30));
     final res = await http.Response.fromStream(streamed);
     final body = await _decode(res) as Map<String, dynamic>;
     return Map<String, Object?>.from(body);
